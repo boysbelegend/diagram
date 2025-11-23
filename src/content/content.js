@@ -77,6 +77,10 @@ async function renderDiagram(element) {
   container.className = 'mermaid-viewer-container';
   container.dataset.originalCode = code;
 
+  // Generate unique ID for this diagram based on code
+  const diagramHash = await generateHash(code);
+  container.dataset.diagramHash = diagramHash;
+
   // Create diagram element
   const diagramDiv = document.createElement('div');
   diagramDiv.className = 'mermaid-diagram';
@@ -89,7 +93,7 @@ async function renderDiagram(element) {
     container.appendChild(diagramDiv);
 
     // Add action buttons
-    addActionButtons(container, code);
+    addActionButtons(container, code, diagramHash);
 
     // Replace original element
     if (element.parentElement.tagName === 'PRE') {
@@ -102,14 +106,17 @@ async function renderDiagram(element) {
     container.dataset.mermaidRendered = 'true';
 
     // Enable drag and drop for nodes
-    enableNodeDragging(container, id);
+    enableNodeDragging(container, id, diagramHash);
+
+    // Restore saved layout
+    await restoreLayout(container, diagramHash);
   } catch (error) {
     throw new Error(`Render failed: ${error.message}`);
   }
 }
 
 // Add action buttons to diagram
-function addActionButtons(container, code) {
+function addActionButtons(container, code, diagramHash) {
   const actions = document.createElement('div');
   actions.className = 'mermaid-actions';
 
@@ -134,10 +141,16 @@ function addActionButtons(container, code) {
     toggleDragMode(container, dragBtn);
   });
 
+  // Reset layout button
+  const resetBtn = createButton('Reset Layout', '🔄', async () => {
+    await resetLayout(container, diagramHash);
+  });
+
   actions.appendChild(editBtn);
   actions.appendChild(copyBtn);
   actions.appendChild(viewCodeBtn);
   actions.appendChild(dragBtn);
+  actions.appendChild(resetBtn);
 
   container.appendChild(actions);
 }
@@ -237,7 +250,7 @@ function observeDOMChanges() {
 }
 
 // Enable node dragging functionality
-function enableNodeDragging(container, diagramId) {
+function enableNodeDragging(container, diagramId, diagramHash) {
   const svg = container.querySelector('svg');
   if (!svg) return;
 
@@ -246,7 +259,8 @@ function enableNodeDragging(container, diagramId) {
     enabled: false,
     dragging: false,
     currentNode: null,
-    offset: { x: 0, y: 0 }
+    offset: { x: 0, y: 0 },
+    diagramHash: diagramHash
   };
 
   // Store for this container
@@ -370,10 +384,14 @@ function makeNodesDraggable(svg, dragState) {
   };
 
   // Mouse up
-  const mouseUpHandler = (e) => {
+  const mouseUpHandler = async (e) => {
     if (dragState.dragging && dragState.currentNode) {
       dragState.currentNode.style.cursor = 'grab';
       dragState.currentNode.classList.remove('dragging');
+
+      // Save layout after drag
+      await saveLayout(svg, dragState.diagramHash);
+
       dragState.currentNode = null;
       dragState.dragging = false;
     }
@@ -410,5 +428,128 @@ function removeNodeDragHandlers(svg) {
     svg.removeEventListener('mouseup', svg._dragHandlers.mouseUpHandler);
     svg.removeEventListener('mouseleave', svg._dragHandlers.mouseUpHandler);
     delete svg._dragHandlers;
+  }
+}
+
+// Generate hash from string
+async function generateHash(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex.substring(0, 16); // Use first 16 chars
+}
+
+// Save layout to storage
+async function saveLayout(svg, diagramHash) {
+  try {
+    const layout = {};
+
+    // Get all nodes with transforms
+    const nodes = svg.querySelectorAll('g[transform*="translate"]');
+    nodes.forEach((node, index) => {
+      const transform = node.getAttribute('transform');
+      const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
+
+      if (translateMatch) {
+        // Use node index as identifier (could be improved with better ID)
+        const nodeId = `node-${index}`;
+        layout[nodeId] = {
+          x: parseFloat(translateMatch[1]),
+          y: parseFloat(translateMatch[2])
+        };
+      }
+    });
+
+    // Get existing layouts
+    const result = await chrome.storage.local.get(['diagramLayouts']);
+    const layouts = result.diagramLayouts || {};
+
+    // Save this diagram's layout
+    layouts[diagramHash] = {
+      layout: layout,
+      timestamp: new Date().toISOString()
+    };
+
+    await chrome.storage.local.set({ diagramLayouts: layouts });
+
+    console.log('Layout saved for diagram:', diagramHash);
+  } catch (error) {
+    console.error('Error saving layout:', error);
+  }
+}
+
+// Restore layout from storage
+async function restoreLayout(container, diagramHash) {
+  try {
+    const result = await chrome.storage.local.get(['diagramLayouts']);
+    const layouts = result.diagramLayouts || {};
+
+    const savedLayout = layouts[diagramHash];
+    if (!savedLayout) return;
+
+    const svg = container.querySelector('svg');
+    if (!svg) return;
+
+    const nodes = svg.querySelectorAll('g[transform*="translate"]');
+    nodes.forEach((node, index) => {
+      const nodeId = `node-${index}`;
+      const position = savedLayout.layout[nodeId];
+
+      if (position) {
+        const transform = node.getAttribute('transform') || '';
+        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+        const newTransform = `translate(${position.x},${position.y}) ${otherTransforms}`.trim();
+        node.setAttribute('transform', newTransform);
+      }
+    });
+
+    console.log('Layout restored for diagram:', diagramHash);
+    showToast('Layout restored from saved position');
+  } catch (error) {
+    console.error('Error restoring layout:', error);
+  }
+}
+
+// Reset layout to original
+async function resetLayout(container, diagramHash) {
+  try {
+    // Remove saved layout
+    const result = await chrome.storage.local.get(['diagramLayouts']);
+    const layouts = result.diagramLayouts || {};
+
+    if (layouts[diagramHash]) {
+      delete layouts[diagramHash];
+      await chrome.storage.local.set({ diagramLayouts: layouts });
+    }
+
+    // Re-render the diagram
+    const code = container.dataset.originalCode;
+    if (!code) return;
+
+    const diagramDiv = container.querySelector('.mermaid-diagram');
+    if (!diagramDiv) return;
+
+    const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const { svg } = await window.mermaid.render(id, code);
+
+    diagramDiv.innerHTML = svg;
+
+    // Re-enable dragging
+    const dragState = container._dragState;
+    if (dragState && dragState.enabled) {
+      const newSvg = container.querySelector('svg');
+      // Remove old handlers first
+      removeNodeDragHandlers(newSvg);
+      // Add new handlers
+      makeNodesDraggable(newSvg, dragState);
+    }
+
+    showToast('Layout reset to original');
+    console.log('Layout reset for diagram:', diagramHash);
+  } catch (error) {
+    console.error('Error resetting layout:', error);
+    showToast('Failed to reset layout');
   }
 }

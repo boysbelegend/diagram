@@ -32,12 +32,15 @@ A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diag
 
 ### Viewer
 - **Auto-Render**: Automatically renders Mermaid code blocks on any webpage
-- **Quick Actions**: Edit, copy, or view code with one click
+- **Interactive Drag & Drop**: Reposition diagram nodes by dragging them
+- **Layout Persistence**: Automatically saves and restores custom node positions
+- **Quick Actions**: Edit, copy, view code, toggle drag mode, or reset layout
 - **Smart Detection**: Finds and renders all Mermaid diagrams on the page
 - **Dynamic Content**: Watches for new diagrams added to the page
 
 ### Storage
 - **Local Storage**: All diagrams saved locally in browser
+- **Layout Storage**: Custom node positions automatically saved per diagram
 - **Recent Diagrams**: Quick access to your recent work in popup
 - **Import/Export**: Backup and restore your diagrams as JSON
 - **Storage Statistics**: View diagram count and storage usage
@@ -98,6 +101,22 @@ A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diag
 - `Ctrl++` - Zoom in
 - `Ctrl+-` - Zoom out
 - `Ctrl+0` - Reset zoom
+
+### Interactive Node Repositioning
+
+The viewer now supports interactive drag-and-drop for repositioning diagram nodes:
+
+1. **Enable Drag Mode**: Click the "Drag Mode" button in the viewer
+2. **Drag Nodes**: Click and drag any node to reposition it
+3. **Auto-Save**: Positions are automatically saved to Chrome Storage
+4. **Auto-Restore**: Custom positions are restored when you revisit the page
+5. **Reset Layout**: Click "Reset Layout" to restore original positions
+
+**Technical Details:**
+- Each diagram is identified by a SHA-256 hash of its code
+- Node positions are stored per-diagram in Chrome Storage
+- Layouts persist across browser sessions
+- Works with all diagram types that have repositionable nodes
 
 ## Project Structure
 
@@ -189,6 +208,16 @@ For bugs or feature requests, please open an issue on GitHub.
 - [ ] AI-powered diagram suggestions
 
 ## Version History
+
+### v1.1.0 (Current)
+- Interactive drag-and-drop for diagram nodes
+- Automatic layout persistence with Chrome Storage
+- Reset layout functionality
+- Settings page with comprehensive configuration options
+- Diagram library with search, filter, and sort
+- Advanced editor features (syntax highlighting, autocomplete, validation)
+- Icon generator tool
+- Test/demo page with examples
 
 ### v1.0.0 (Initial Release)
 - Basic editor with live preview
