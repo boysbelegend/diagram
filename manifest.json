@@ -42,6 +42,7 @@
         "src/editor/editor.html",
         "src/settings/settings.html",
         "src/library/library.html",
+        "src/libs/*",
         "assets/*"
       ],
       "matches": ["<all_urls>"]

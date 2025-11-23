@@ -1,0 +1,14 @@
+{
+  "name": "mermaid-diagram-editor",
+  "version": "1.2.0",
+  "description": "Mermaid Diagram Editor & Viewer Chrome Extension",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm run copy-libs",
+    "copy-libs": "mkdir -p src/libs && cp node_modules/mermaid/dist/mermaid.min.js src/libs/ && cp node_modules/jspdf/dist/jspdf.umd.min.js src/libs/"
+  },
+  "dependencies": {
+    "jspdf": "^3.0.4",
+    "mermaid": "^11.12.1"
+  }
+}
