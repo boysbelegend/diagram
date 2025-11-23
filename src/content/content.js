@@ -100,6 +100,9 @@ async function renderDiagram(element) {
 
     // Mark as rendered
     container.dataset.mermaidRendered = 'true';
+
+    // Enable drag and drop for nodes
+    enableNodeDragging(container, id);
   } catch (error) {
     throw new Error(`Render failed: ${error.message}`);
   }
@@ -126,9 +129,15 @@ function addActionButtons(container, code) {
     toggleCodeView(container, code);
   });
 
+  // Drag mode toggle button
+  const dragBtn = createButton('Drag Mode', '🖱️', () => {
+    toggleDragMode(container, dragBtn);
+  });
+
   actions.appendChild(editBtn);
   actions.appendChild(copyBtn);
   actions.appendChild(viewCodeBtn);
+  actions.appendChild(dragBtn);
 
   container.appendChild(actions);
 }
@@ -225,4 +234,181 @@ function observeDOMChanges() {
     childList: true,
     subtree: true
   });
+}
+
+// Enable node dragging functionality
+function enableNodeDragging(container, diagramId) {
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+
+  // Store drag state
+  let dragState = {
+    enabled: false,
+    dragging: false,
+    currentNode: null,
+    offset: { x: 0, y: 0 }
+  };
+
+  // Store for this container
+  container._dragState = dragState;
+}
+
+// Toggle drag mode
+function toggleDragMode(container, button) {
+  const dragState = container._dragState;
+  if (!dragState) return;
+
+  dragState.enabled = !dragState.enabled;
+
+  const svg = container.querySelector('svg');
+  const diagramDiv = container.querySelector('.mermaid-diagram');
+
+  if (dragState.enabled) {
+    // Enable drag mode
+    button.classList.add('active');
+    diagramDiv.classList.add('drag-mode');
+    showToast('Drag mode enabled - Click and drag nodes');
+
+    // Make nodes draggable
+    makeNodesDraggable(svg, dragState);
+  } else {
+    // Disable drag mode
+    button.classList.remove('active');
+    diagramDiv.classList.remove('drag-mode');
+    showToast('Drag mode disabled');
+
+    // Remove drag handlers
+    removeNodeDragHandlers(svg);
+  }
+}
+
+// Make SVG nodes draggable
+function makeNodesDraggable(svg, dragState) {
+  // Find all node groups (typically g elements with specific classes)
+  const nodeSelectors = [
+    'g.node',
+    'g.nodes > g',
+    'g[class*="node"]',
+    'rect[class*="node"]',
+    'circle',
+    'ellipse',
+    'polygon'
+  ];
+
+  const nodes = svg.querySelectorAll(nodeSelectors.join(', '));
+
+  nodes.forEach(node => {
+    // Get the parent group if this is a shape element
+    const draggableElement = node.tagName === 'g' ? node : node.closest('g');
+    if (!draggableElement) return;
+
+    // Skip if already has drag handler
+    if (draggableElement._hasDragHandler) return;
+    draggableElement._hasDragHandler = true;
+
+    // Add visual feedback
+    draggableElement.style.cursor = 'grab';
+
+    // Mouse down
+    const mouseDownHandler = (e) => {
+      if (!dragState.enabled) return;
+      e.stopPropagation();
+      e.preventDefault();
+
+      dragState.dragging = true;
+      dragState.currentNode = draggableElement;
+      draggableElement.style.cursor = 'grabbing';
+
+      // Get current transform
+      const transform = draggableElement.getAttribute('transform') || '';
+      const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
+
+      const currentX = translateMatch ? parseFloat(translateMatch[1]) : 0;
+      const currentY = translateMatch ? parseFloat(translateMatch[2]) : 0;
+
+      // Calculate offset
+      const svgPoint = svg.createSVGPoint();
+      svgPoint.x = e.clientX;
+      svgPoint.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      const point = svgPoint.matrixTransform(ctm.inverse());
+
+      dragState.offset = {
+        x: point.x - currentX,
+        y: point.y - currentY
+      };
+
+      // Add dragging class
+      draggableElement.classList.add('dragging');
+    };
+
+    draggableElement.addEventListener('mousedown', mouseDownHandler);
+    draggableElement._mouseDownHandler = mouseDownHandler;
+  });
+
+  // Mouse move on SVG
+  const mouseMoveHandler = (e) => {
+    if (!dragState.dragging || !dragState.currentNode) return;
+    e.preventDefault();
+
+    const svgPoint = svg.createSVGPoint();
+    svgPoint.x = e.clientX;
+    svgPoint.y = e.clientY;
+    const ctm = svg.getScreenCTM();
+    const point = svgPoint.matrixTransform(ctm.inverse());
+
+    const newX = point.x - dragState.offset.x;
+    const newY = point.y - dragState.offset.y;
+
+    // Get existing transform and preserve other transforms
+    const transform = dragState.currentNode.getAttribute('transform') || '';
+    const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+
+    // Set new transform
+    const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
+    dragState.currentNode.setAttribute('transform', newTransform);
+  };
+
+  // Mouse up
+  const mouseUpHandler = (e) => {
+    if (dragState.dragging && dragState.currentNode) {
+      dragState.currentNode.style.cursor = 'grab';
+      dragState.currentNode.classList.remove('dragging');
+      dragState.currentNode = null;
+      dragState.dragging = false;
+    }
+  };
+
+  svg.addEventListener('mousemove', mouseMoveHandler);
+  svg.addEventListener('mouseup', mouseUpHandler);
+  svg.addEventListener('mouseleave', mouseUpHandler);
+
+  // Store handlers for cleanup
+  svg._dragHandlers = {
+    mouseMoveHandler,
+    mouseUpHandler
+  };
+}
+
+// Remove drag handlers
+function removeNodeDragHandlers(svg) {
+  // Remove node handlers
+  const nodes = svg.querySelectorAll('g, rect, circle, ellipse, polygon');
+  nodes.forEach(node => {
+    if (node._mouseDownHandler) {
+      node.removeEventListener('mousedown', node._mouseDownHandler);
+      delete node._mouseDownHandler;
+      delete node._hasDragHandler;
+      node.style.cursor = '';
+      node.classList.remove('dragging');
+    }
+  });
+
+  // Remove SVG handlers
+  if (svg._dragHandlers) {
+    svg.removeEventListener('mousemove', svg._dragHandlers.mouseMoveHandler);
+    svg.removeEventListener('mouseup', svg._dragHandlers.mouseUpHandler);
+    svg.removeEventListener('mouseleave', svg._dragHandlers.mouseUpHandler);
+    delete svg._dragHandlers;
+  }
 }

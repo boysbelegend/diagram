@@ -58,6 +58,19 @@
   font-size: 14px;
 }
 
+.mermaid-action-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mermaid-action-btn.active {
+    background: #5568d3;
+    border-color: #5568d3;
+  }
+}
+
 /* Code view */
 .mermaid-code-view {
   margin-top: 16px;
@@ -151,6 +164,53 @@
   }
 }
 
+/* Drag mode styles */
+.mermaid-diagram.drag-mode {
+  cursor: default;
+  user-select: none;
+}
+
+.mermaid-diagram.drag-mode svg {
+  overflow: visible !important;
+}
+
+/* Dragging node */
+.mermaid-diagram g.dragging {
+  opacity: 0.7;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* Draggable nodes hover effect */
+.mermaid-diagram.drag-mode g[style*="cursor: grab"]:hover {
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.4));
+}
+
+/* Visual feedback for drag mode */
+.mermaid-diagram.drag-mode::before {
+  content: "🖱️ Drag Mode Active - Click and drag nodes to reposition";
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(102, 126, 234, 0.95);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  .mermaid-diagram.drag-mode::before {
+    background: rgba(85, 104, 211, 0.95);
+  }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .mermaid-viewer-container {
@@ -165,5 +225,10 @@
   .mermaid-action-btn {
     font-size: 12px;
     padding: 6px 10px;
+  }
+
+  .mermaid-diagram.drag-mode::before {
+    font-size: 10px;
+    padding: 4px 12px;
   }
 }
