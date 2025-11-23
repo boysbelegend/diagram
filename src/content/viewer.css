@@ -1,0 +1,169 @@
+/* Mermaid Viewer Styles */
+
+.mermaid-viewer-container {
+  position: relative;
+  margin: 20px 0;
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
+  overflow-x: auto;
+}
+
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Action buttons */
+.mermaid-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.mermaid-action-btn {
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  color: #374151;
+}
+
+.mermaid-action-btn:hover {
+  background: #e5e7eb;
+  border-color: #667eea;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mermaid-action-btn .icon {
+  font-size: 14px;
+}
+
+/* Code view */
+.mermaid-code-view {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+  color: #111827;
+}
+
+/* Error display */
+.mermaid-error {
+  margin: 20px 0;
+  padding: 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+}
+
+.mermaid-error strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.mermaid-error p {
+  margin: 0;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+/* Toast notification */
+.mermaid-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  background: #111827;
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  font-size: 14px;
+  z-index: 10000;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+}
+
+.mermaid-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .mermaid-viewer-container {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .mermaid-actions {
+    border-top-color: #374151;
+  }
+
+  .mermaid-action-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+
+  .mermaid-action-btn:hover {
+    background: #4b5563;
+    border-color: #667eea;
+  }
+
+  .mermaid-code-view {
+    background: #111827;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+
+  .mermaid-error {
+    background: #7f1d1d;
+    border-color: #991b1b;
+    color: #fecaca;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mermaid-viewer-container {
+    margin: 10px 0;
+    padding: 12px;
+  }
+
+  .mermaid-actions {
+    flex-wrap: wrap;
+  }
+
+  .mermaid-action-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}

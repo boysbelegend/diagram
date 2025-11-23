@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid Diagram Editor</title>
+  <link rel="stylesheet" href="editor.css">
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      logLevel: 'error'
+    });
+    window.mermaid = mermaid;
+  </script>
+</head>
+<body>
+  <div class="editor-container">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <h1 class="logo">Mermaid Editor</h1>
+        <input type="text" id="diagramTitle" class="diagram-title" placeholder="Untitled Diagram" />
+      </div>
+      <div class="toolbar-center">
+        <select id="templateSelect" class="template-select">
+          <option value="">Select Template...</option>
+          <option value="flowchart">Flowchart</option>
+          <option value="sequence">Sequence Diagram</option>
+          <option value="class">Class Diagram</option>
+          <option value="state">State Diagram</option>
+          <option value="er">ER Diagram</option>
+          <option value="gantt">Gantt Chart</option>
+          <option value="pie">Pie Chart</option>
+          <option value="git">Git Graph</option>
+          <option value="c4">C4 Diagram</option>
+        </select>
+      </div>
+      <div class="toolbar-right">
+        <button id="saveBtn" class="btn btn-icon" title="Save (Ctrl+S)">💾</button>
+        <button id="exportPngBtn" class="btn btn-icon" title="Export as PNG">🖼️</button>
+        <button id="exportSvgBtn" class="btn btn-icon" title="Export as SVG">📄</button>
+        <button id="copyBtn" class="btn btn-icon" title="Copy Code">📋</button>
+        <button id="themeToggle" class="btn btn-icon" title="Toggle Theme">🌓</button>
+        <button id="helpBtn" class="btn btn-icon" title="Help">❓</button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Code Editor -->
+      <div class="editor-panel">
+        <div class="panel-header">
+          <span class="panel-title">Code Editor</span>
+          <div class="editor-actions">
+            <button id="formatBtn" class="btn-text">Format</button>
+            <button id="clearBtn" class="btn-text">Clear</button>
+          </div>
+        </div>
+        <textarea id="codeEditor" class="code-editor" spellcheck="false">graph TD
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great!]
+    B -->|No| D[Debug]
+    D --> B
+    C --> E[End]</textarea>
+        <div class="editor-footer">
+          <span id="lineCount">Lines: 1</span>
+          <span id="charCount">Characters: 0</span>
+        </div>
+      </div>
+
+      <!-- Resize Handle -->
+      <div class="resize-handle"></div>
+
+      <!-- Preview Panel -->
+      <div class="preview-panel">
+        <div class="panel-header">
+          <span class="panel-title">Live Preview</span>
+          <div class="preview-actions">
+            <button id="zoomInBtn" class="btn-text">+</button>
+            <span id="zoomLevel">100%</span>
+            <button id="zoomOutBtn" class="btn-text">-</button>
+            <button id="resetZoomBtn" class="btn-text">Reset</button>
+          </div>
+        </div>
+        <div class="preview-container">
+          <div id="preview" class="preview-content"></div>
+          <div id="errorMessage" class="error-message" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span id="status">Ready</span>
+      <span id="lastSaved"></span>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div id="helpModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Keyboard Shortcuts</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table class="shortcuts-table">
+          <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save diagram</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Update preview</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td><td>Toggle comment</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>+</kbd></td><td>Zoom in</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>-</kbd></td><td>Zoom out</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>0</kbd></td><td>Reset zoom</td></tr>
+        </table>
+        <div class="help-links">
+          <a href="https://mermaid.js.org/intro/" target="_blank">Mermaid Documentation</a>
+          <a href="https://mermaid.live/" target="_blank">Live Editor</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>

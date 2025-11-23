@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid Diagram Editor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header>
+      <h1>Mermaid Diagram</h1>
+      <p class="subtitle">Editor & Viewer</p>
+    </header>
+
+    <div class="quick-actions">
+      <button id="newDiagramBtn" class="btn btn-primary">
+        <span class="icon">+</span>
+        New Diagram
+      </button>
+      <button id="openEditorBtn" class="btn btn-secondary">
+        <span class="icon">✏️</span>
+        Open Editor
+      </button>
+    </div>
+
+    <div class="templates-section">
+      <h3>Quick Templates</h3>
+      <div class="template-grid">
+        <button class="template-btn" data-type="flowchart">
+          <span class="template-icon">📊</span>
+          <span>Flowchart</span>
+        </button>
+        <button class="template-btn" data-type="sequence">
+          <span class="template-icon">↔️</span>
+          <span>Sequence</span>
+        </button>
+        <button class="template-btn" data-type="class">
+          <span class="template-icon">🏗️</span>
+          <span>Class</span>
+        </button>
+        <button class="template-btn" data-type="c4">
+          <span class="template-icon">🏛️</span>
+          <span>C4</span>
+        </button>
+        <button class="template-btn" data-type="er">
+          <span class="template-icon">🗄️</span>
+          <span>ER</span>
+        </button>
+        <button class="template-btn" data-type="gantt">
+          <span class="template-icon">📅</span>
+          <span>Gantt</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="recent-section">
+      <h3>Recent Diagrams</h3>
+      <div id="recentList" class="recent-list">
+        <p class="empty-state">No recent diagrams</p>
+      </div>
+    </div>
+
+    <footer>
+      <button id="settingsBtn" class="btn-icon" title="Settings">⚙️</button>
+      <span class="version">v1.0.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

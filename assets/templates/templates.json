@@ -1,0 +1,95 @@
+{
+  "templates": [
+    {
+      "id": "flowchart-basic",
+      "name": "Basic Flowchart",
+      "type": "flowchart",
+      "description": "Simple flowchart with decision points",
+      "code": "graph TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Action 1]\n    B -->|No| D[Action 2]\n    C --> E[End]\n    D --> E"
+    },
+    {
+      "id": "flowchart-advanced",
+      "name": "Advanced Flowchart",
+      "type": "flowchart",
+      "description": "Complex flowchart with multiple paths",
+      "code": "graph TB\n    Start([Start]) --> Input[/Input Data/]\n    Input --> Process1[Process Data]\n    Process1 --> Decision1{Valid?}\n    Decision1 -->|Yes| Process2[Transform]\n    Decision1 -->|No| Error[Error Handler]\n    Process2 --> Decision2{Complete?}\n    Decision2 -->|Yes| Output[/Output Results/]\n    Decision2 -->|No| Process1\n    Error --> End([End])\n    Output --> End"
+    },
+    {
+      "id": "sequence-basic",
+      "name": "Basic Sequence Diagram",
+      "type": "sequence",
+      "description": "Simple sequence diagram",
+      "code": "sequenceDiagram\n    participant A as Alice\n    participant B as Bob\n    A->>B: Hello Bob!\n    B->>A: Hello Alice!\n    A->>B: How are you?\n    B->>A: I'm good, thanks!"
+    },
+    {
+      "id": "sequence-advanced",
+      "name": "Advanced Sequence Diagram",
+      "type": "sequence",
+      "description": "Sequence diagram with loops and alternatives",
+      "code": "sequenceDiagram\n    participant Client\n    participant API\n    participant DB\n    participant Cache\n\n    Client->>API: Request Data\n    API->>Cache: Check Cache\n    alt Cache Hit\n        Cache-->>API: Return Cached Data\n    else Cache Miss\n        API->>DB: Query Database\n        DB-->>API: Return Data\n        API->>Cache: Update Cache\n    end\n    API-->>Client: Response\n\n    loop Every 5 minutes\n        API->>Cache: Refresh Cache\n    end"
+    },
+    {
+      "id": "class-basic",
+      "name": "Basic Class Diagram",
+      "type": "class",
+      "description": "Simple class diagram with inheritance",
+      "code": "classDiagram\n    class Animal {\n        +String name\n        +int age\n        +makeSound()\n    }\n    class Dog {\n        +String breed\n        +bark()\n    }\n    class Cat {\n        +meow()\n    }\n    Animal <|-- Dog\n    Animal <|-- Cat"
+    },
+    {
+      "id": "class-advanced",
+      "name": "Advanced Class Diagram",
+      "type": "class",
+      "description": "Complex class diagram with relationships",
+      "code": "classDiagram\n    class User {\n        -String id\n        -String username\n        -String email\n        +login()\n        +logout()\n    }\n    class Admin {\n        -List~Permission~ permissions\n        +grantAccess()\n        +revokeAccess()\n    }\n    class Post {\n        -String id\n        -String title\n        -String content\n        -Date createdAt\n        +publish()\n        +delete()\n    }\n    class Comment {\n        -String id\n        -String text\n        +edit()\n    }\n    User <|-- Admin\n    User \"1\" --> \"*\" Post : creates\n    Post \"1\" --> \"*\" Comment : has\n    User \"1\" --> \"*\" Comment : writes"
+    },
+    {
+      "id": "c4-context",
+      "name": "C4 Context Diagram",
+      "type": "c4",
+      "description": "System context diagram showing external dependencies",
+      "code": "C4Context\n    title System Context diagram for Internet Banking System\n\n    Person(customer, \"Personal Banking Customer\", \"A customer of the bank\")\n    System(banking_system, \"Internet Banking System\", \"Allows customers to view information about their accounts\")\n    System_Ext(mail_system, \"E-mail system\", \"The internal Microsoft Exchange e-mail system\")\n    System_Ext(mainframe, \"Mainframe Banking System\", \"Stores all of the core banking information\")\n\n    Rel(customer, banking_system, \"Uses\")\n    Rel_Back(customer, mail_system, \"Sends e-mails to\")\n    Rel(banking_system, mail_system, \"Sends e-mails\", \"SMTP\")\n    Rel(banking_system, mainframe, \"Uses\")"
+    },
+    {
+      "id": "c4-container",
+      "name": "C4 Container Diagram",
+      "type": "c4",
+      "description": "Container diagram showing application architecture",
+      "code": "C4Container\n    title Container diagram for Internet Banking System\n\n    Person(customer, \"Personal Banking Customer\", \"A customer of the bank\")\n\n    System_Boundary(c1, \"Internet Banking System\") {\n        Container(web_app, \"Web Application\", \"Java, Spring MVC\", \"Delivers the static content and the Internet banking SPA\")\n        Container(spa, \"Single-Page App\", \"JavaScript, React\", \"Provides Internet banking functionality to customers\")\n        Container(mobile_app, \"Mobile App\", \"Kotlin\", \"Provides limited Internet banking functionality\")\n        ContainerDb(database, \"Database\", \"PostgreSQL\", \"Stores user registration information, hashed auth credentials, access logs, etc.\")\n        Container(backend_api, \"API Application\", \"Java, Spring Boot\", \"Provides Internet banking functionality via API\")\n    }\n\n    System_Ext(email_system, \"E-Mail System\", \"The internal Microsoft Exchange system\")\n    System_Ext(banking_system, \"Mainframe Banking System\", \"Stores all of the core banking information\")\n\n    Rel(customer, web_app, \"Uses\", \"HTTPS\")\n    Rel(customer, spa, \"Uses\", \"HTTPS\")\n    Rel(customer, mobile_app, \"Uses\")\n\n    Rel(web_app, spa, \"Delivers\")\n    Rel(spa, backend_api, \"Uses\", \"async, JSON/HTTPS\")\n    Rel(mobile_app, backend_api, \"Uses\", \"async, JSON/HTTPS\")\n    Rel(backend_api, database, \"Reads from and writes to\", \"JDBC\")\n    Rel(backend_api, email_system, \"Sends e-mails using\", \"SMTP\")\n    Rel(backend_api, banking_system, \"Uses\", \"XML/HTTPS\")"
+    },
+    {
+      "id": "er-basic",
+      "name": "Basic ER Diagram",
+      "type": "er",
+      "description": "Simple entity relationship diagram",
+      "code": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    ORDER ||--|{ LINE-ITEM : contains\n    CUSTOMER }|..|{ DELIVERY-ADDRESS : uses\n\n    CUSTOMER {\n        string name\n        string email\n        string phone\n    }\n    ORDER {\n        int orderNumber\n        date orderDate\n        string status\n    }\n    LINE-ITEM {\n        string productCode\n        int quantity\n        float price\n    }"
+    },
+    {
+      "id": "state-basic",
+      "name": "Basic State Diagram",
+      "type": "state",
+      "description": "Simple state machine",
+      "code": "stateDiagram-v2\n    [*] --> Idle\n    Idle --> Processing : Start\n    Processing --> Success : Complete\n    Processing --> Error : Fail\n    Error --> Idle : Retry\n    Success --> [*]"
+    },
+    {
+      "id": "gantt-basic",
+      "name": "Basic Gantt Chart",
+      "type": "gantt",
+      "description": "Simple project timeline",
+      "code": "gantt\n    title Project Timeline\n    dateFormat YYYY-MM-DD\n    section Planning\n    Requirements    :a1, 2024-01-01, 30d\n    Design          :a2, after a1, 20d\n    section Development\n    Backend         :a3, after a2, 45d\n    Frontend        :a4, after a2, 40d\n    section Testing\n    Testing         :a5, after a3, 15d\n    Deployment      :a6, after a5, 5d"
+    },
+    {
+      "id": "pie-basic",
+      "name": "Basic Pie Chart",
+      "type": "pie",
+      "description": "Simple pie chart",
+      "code": "pie title Market Share\n    \"Product A\" : 45\n    \"Product B\" : 30\n    \"Product C\" : 15\n    \"Product D\" : 10"
+    },
+    {
+      "id": "git-basic",
+      "name": "Basic Git Graph",
+      "type": "git",
+      "description": "Simple git branching diagram",
+      "code": "gitGraph\n    commit\n    commit\n    branch develop\n    checkout develop\n    commit\n    commit\n    checkout main\n    merge develop\n    commit"
+    }
+  ]
+}
