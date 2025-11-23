@@ -64,6 +64,6 @@
     }
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; object-src 'self'"
   }
 }

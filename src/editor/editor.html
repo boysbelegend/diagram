@@ -6,16 +6,7 @@
   <title>Mermaid Diagram Editor</title>
   <link rel="stylesheet" href="editor.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script type="module">
-    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'loose',
-      logLevel: 'error'
-    });
-    window.mermaid = mermaid;
-  </script>
+  <script type="module" src="mermaid-init.js"></script>
 </head>
 <body>
   <div class="editor-container">

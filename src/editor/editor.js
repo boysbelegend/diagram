@@ -75,7 +75,16 @@ const zoomLevelDisplay = document.getElementById('zoomLevel');
  * Initialize the editor when DOM is loaded
  * Sets up all event listeners and loads initial content
  */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Wait for Mermaid to be loaded
+  try {
+    await window.mermaidReady;
+    console.log('Editor initializing with Mermaid loaded');
+  } catch (error) {
+    console.error('Failed to load Mermaid library:', error);
+    showNotification('Failed to load diagram library', 'error');
+  }
+
   loadFromURL();
   setupEventListeners();
   updatePreview();
@@ -178,6 +187,17 @@ async function updatePreview() {
     preview.innerHTML = '<p style="color: #9ca3af;">Start typing to see preview...</p>';
     errorMessage.style.display = 'none';
     return;
+  }
+
+  // Check if Mermaid is loaded
+  if (!window.mermaid) {
+    try {
+      await window.mermaidReady;
+    } catch (error) {
+      preview.innerHTML = '<p style="color: #ef4444;">Failed to load Mermaid library. Please refresh the page.</p>';
+      errorMessage.style.display = 'none';
+      return;
+    }
   }
 
   try {
@@ -475,11 +495,13 @@ function toggleTheme() {
   const isDark = document.body.classList.contains('dark-theme');
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
 
-  // Update mermaid theme
-  window.mermaid.initialize({
-    theme: isDark ? 'dark' : 'default'
-  });
-  updatePreview();
+  // Update mermaid theme if loaded
+  if (window.mermaid) {
+    window.mermaid.initialize({
+      theme: isDark ? 'dark' : 'default'
+    });
+    updatePreview();
+  }
 }
 
 // Show help
@@ -805,7 +827,12 @@ function showNotification(message, type = 'info') {
 const savedTheme = localStorage.getItem('theme');
 if (savedTheme === 'dark') {
   document.body.classList.add('dark-theme');
-  window.mermaid?.initialize({ theme: 'dark' });
+  // Apply dark theme to Mermaid when it's loaded
+  if (window.mermaidReady) {
+    window.mermaidReady.then((mermaid) => {
+      mermaid.initialize({ theme: 'dark' });
+    });
+  }
 }
 
 // ==============================================
