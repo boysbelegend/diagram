@@ -363,6 +363,71 @@ kbd {
   background: var(--text-secondary);
 }
 
+/* Drag mode styles */
+.preview-content.drag-mode {
+  cursor: default;
+  user-select: none;
+}
+
+.preview-content.drag-mode svg {
+  overflow: visible !important;
+}
+
+/* Dragging node */
+.preview-content g.dragging {
+  opacity: 0.7;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* Draggable nodes hover effect */
+.preview-content.drag-mode g[style*="cursor: grab"]:hover {
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.4));
+}
+
+/* Selected node */
+.preview-content g.selected {
+  filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.8));
+  outline: 2px dashed var(--accent-color);
+  outline-offset: 4px;
+}
+
+/* Active button state */
+.btn-text.active {
+  background: var(--accent-color);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.btn-text.active:hover {
+  background: var(--accent-hover);
+}
+
+/* Visual feedback for drag mode */
+.preview-content.drag-mode::before {
+  content: "🖱️ Drag Mode Active - Click and drag nodes to reposition";
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(102, 126, 234, 0.95);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .preview-content.drag-mode::before {
+  background: rgba(85, 104, 211, 0.95);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .toolbar {
@@ -375,5 +440,10 @@ kbd {
 
   .resize-handle {
     display: none;
+  }
+
+  .preview-content.drag-mode::before {
+    font-size: 11px;
+    padding: 6px 12px;
   }
 }

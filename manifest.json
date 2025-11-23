@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Mermaid Diagram Editor & Viewer",
-  "version": "1.1.0",
-  "description": "Create, edit, and view Mermaid diagrams with live preview. Interactive drag-and-drop, layout persistence, and support for 9 diagram types including C4.",
+  "version": "1.2.0",
+  "description": "Create, edit, and view Mermaid diagrams with live preview. Drag-and-drop, PDF export, grid snap, alignment tools, keyboard navigation, and support for 9 diagram types.",
   "icons": {
     "16": "assets/icons/icon16.png",
     "48": "assets/icons/icon48.png",

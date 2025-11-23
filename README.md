@@ -6,15 +6,19 @@ A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diag
 
 ### Editor
 - **Live Preview**: Real-time diagram rendering as you type
+- **Interactive Drag & Drop**: Reposition diagram nodes directly in the editor preview
 - **Multiple Diagram Types**: Support for flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, pie charts, git graphs, and **C4 diagrams**
 - **Syntax Highlighting**: Color-coded syntax for better readability
 - **Auto-completion**: Smart suggestions for Mermaid keywords and syntax
 - **Error Validation**: Real-time error detection and validation
 - **Templates**: Quick start with pre-built templates for all diagram types
-- **Export**: Save diagrams as PNG, SVG, HTML, Markdown, or text files
+- **Export**: Save diagrams as PNG, SVG, **PDF**, HTML, Markdown, or text files
 - **Dark Mode**: Toggle between light and dark themes
 - **Auto-Save**: Automatically save your work with configurable intervals
 - **Zoom Controls**: Zoom in/out for detailed viewing
+- **Grid Snap**: Align nodes to grid (10px) for precise positioning
+- **Alignment Tools**: Align multiple nodes left, center, or right
+- **Keyboard Navigation**: Move selected nodes with arrow keys (10px) or Alt+arrows (1px)
 
 ### Diagram Library
 - **Organized Library**: Browse and manage all your diagrams in one place
@@ -101,16 +105,29 @@ A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diag
 - `Ctrl++` - Zoom in
 - `Ctrl+-` - Zoom out
 - `Ctrl+0` - Reset zoom
+- `Arrow Keys` - Move selected node (10px increments, requires drag mode)
+- `Alt+Arrow Keys` - Fine move selected node (1px increments)
+- `Escape` - Deselect node / Close modal
 
-### Interactive Node Repositioning
+### Interactive Node Repositioning (Editor & Viewer)
 
-The viewer now supports interactive drag-and-drop for repositioning diagram nodes:
+Both the editor and viewer now support interactive drag-and-drop for repositioning diagram nodes:
 
-1. **Enable Drag Mode**: Click the "Drag Mode" button in the viewer
+**Basic Controls:**
+1. **Enable Drag Mode**: Click the "Drag Mode" button
 2. **Drag Nodes**: Click and drag any node to reposition it
 3. **Auto-Save**: Positions are automatically saved to Chrome Storage
 4. **Auto-Restore**: Custom positions are restored when you revisit the page
 5. **Reset Layout**: Click "Reset Layout" to restore original positions
+
+**Advanced Features (Editor Only):**
+- **Grid Snap**: Enable grid snapping (10px) for precise alignment
+- **Alignment Tools**: Align all nodes left, center, or right
+- **Keyboard Navigation**:
+  - Arrow keys: Move selected node 10px
+  - Alt+Arrow keys: Fine movement (1px)
+  - Escape: Deselect node
+- **Node Selection**: Click a node to select it (indicated by dashed outline)
 
 **Technical Details:**
 - Each diagram is identified by a SHA-256 hash of its code
@@ -201,16 +218,27 @@ For bugs or feature requests, please open an issue on GitHub.
 
 - [ ] Cloud sync support
 - [ ] Collaboration features
-- [ ] More export formats (PDF)
+- [x] ~~More export formats (PDF)~~ - **Completed in v1.2.0**
 - [ ] Custom themes
 - [ ] Diagram version history
 - [ ] Import from various formats
 - [ ] AI-powered diagram suggestions
+- [ ] Multi-select for batch node operations
+- [ ] Undo/redo for layout changes
 
 ## Version History
 
-### v1.1.0 (Current)
-- Interactive drag-and-drop for diagram nodes
+### v1.2.0 (Current)
+- **Editor drag-and-drop integration**: Full drag & drop support in editor preview
+- **PDF export**: Export diagrams as PDF with automatic page orientation
+- **Grid snap**: Align nodes to 10px grid for precise positioning
+- **Alignment tools**: Align multiple nodes left, center, or right
+- **Keyboard navigation**: Move nodes with arrow keys (10px) or Alt+arrows (1px)
+- **Node selection**: Visual feedback for selected nodes with dashed outline
+- Enhanced keyboard shortcuts for editor workflow
+
+### v1.1.0
+- Interactive drag-and-drop for diagram nodes in viewer
 - Automatic layout persistence with Chrome Storage
 - Reset layout functionality
 - Settings page with comprehensive configuration options

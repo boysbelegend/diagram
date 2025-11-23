@@ -2,6 +2,16 @@
 let currentDiagram = null;
 let debounceTimer = null;
 let zoomLevel = 100;
+let dragState = {
+  enabled: false,
+  dragging: false,
+  currentNode: null,
+  offset: { x: 0, y: 0 },
+  diagramHash: null,
+  gridSnap: false,
+  gridSize: 10,
+  selectedNodes: []
+};
 
 // DOM elements
 const codeEditor = document.getElementById('codeEditor');
@@ -51,6 +61,7 @@ function setupEventListeners() {
   document.getElementById('saveBtn').addEventListener('click', saveDiagram);
   document.getElementById('exportPngBtn').addEventListener('click', exportAsPNG);
   document.getElementById('exportSvgBtn').addEventListener('click', exportAsSVG);
+  document.getElementById('exportPdfBtn').addEventListener('click', exportAsPDF);
   document.getElementById('copyBtn').addEventListener('click', copyCode);
   document.getElementById('themeToggle').addEventListener('click', toggleTheme);
   document.getElementById('helpBtn').addEventListener('click', showHelp);
@@ -60,6 +71,12 @@ function setupEventListeners() {
   document.getElementById('clearBtn').addEventListener('click', clearEditor);
 
   // Preview actions
+  document.getElementById('dragModeBtn').addEventListener('click', toggleDragMode);
+  document.getElementById('gridSnapBtn').addEventListener('click', toggleGridSnap);
+  document.getElementById('alignLeftBtn').addEventListener('click', () => alignNodes('left'));
+  document.getElementById('alignCenterBtn').addEventListener('click', () => alignNodes('center'));
+  document.getElementById('alignRightBtn').addEventListener('click', () => alignNodes('right'));
+  document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
   document.getElementById('zoomInBtn').addEventListener('click', () => zoom(10));
   document.getElementById('zoomOutBtn').addEventListener('click', () => zoom(-10));
   document.getElementById('resetZoomBtn').addEventListener('click', resetZoom);
@@ -101,6 +118,9 @@ async function updatePreview() {
     // Clear previous diagram
     preview.innerHTML = '';
 
+    // Generate hash for this diagram
+    dragState.diagramHash = await generateHash(code);
+
     // Create container for mermaid
     const container = document.createElement('div');
     container.className = 'mermaid';
@@ -110,6 +130,12 @@ async function updatePreview() {
     // Render with mermaid
     const { svg } = await window.mermaid.render('preview-diagram', code);
     preview.innerHTML = svg;
+
+    // Enable drag functionality
+    enableNodeDragging();
+
+    // Restore saved layout if exists
+    await restoreLayout(dragState.diagramHash);
 
     status.textContent = 'Ready';
   } catch (error) {
@@ -222,6 +248,109 @@ function exportAsSVG() {
   } catch (error) {
     console.error('Export SVG error:', error);
     showNotification('Failed to export SVG', 'error');
+  }
+}
+
+// Export as PDF
+async function exportAsPDF() {
+  try {
+    const svgElement = preview.querySelector('svg');
+    if (!svgElement) {
+      showNotification('No diagram to export', 'error');
+      return;
+    }
+
+    // Check if jsPDF is available
+    if (typeof window.jspdf === 'undefined') {
+      showNotification('PDF library not loaded', 'error');
+      return;
+    }
+
+    status.textContent = 'Generating PDF...';
+
+    // Get SVG dimensions
+    const svgWidth = parseFloat(svgElement.getAttribute('width') || svgElement.viewBox.baseVal.width || 800);
+    const svgHeight = parseFloat(svgElement.getAttribute('height') || svgElement.viewBox.baseVal.height || 600);
+
+    // Convert SVG to image first
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const img = new Image();
+
+    img.onload = () => {
+      // Create canvas to render SVG
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Set canvas size
+      canvas.width = svgWidth;
+      canvas.height = svgHeight;
+
+      // Fill white background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+
+      // Convert to image data
+      const imgData = canvas.toDataURL('image/png');
+
+      // Create PDF
+      const { jsPDF } = window.jspdf;
+
+      // Calculate PDF dimensions (A4 or custom based on diagram size)
+      const pdfWidth = svgWidth > svgHeight ? 297 : 210; // A4 landscape or portrait
+      const pdfHeight = svgWidth > svgHeight ? 210 : 297;
+      const orientation = svgWidth > svgHeight ? 'landscape' : 'portrait';
+
+      const pdf = new jsPDF({
+        orientation: orientation,
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Calculate dimensions to fit in PDF
+      const margin = 10;
+      const maxWidth = pdfWidth - (2 * margin);
+      const maxHeight = pdfHeight - (2 * margin);
+
+      let width = maxWidth;
+      let height = (svgHeight / svgWidth) * maxWidth;
+
+      if (height > maxHeight) {
+        height = maxHeight;
+        width = (svgWidth / svgHeight) * maxHeight;
+      }
+
+      // Center the image
+      const x = (pdfWidth - width) / 2;
+      const y = (pdfHeight - height) / 2;
+
+      // Add image to PDF
+      pdf.addImage(imgData, 'PNG', x, y, width, height);
+
+      // Add title if exists
+      if (diagramTitle.value) {
+        pdf.setFontSize(16);
+        pdf.text(diagramTitle.value, pdfWidth / 2, 10, { align: 'center' });
+      }
+
+      // Save PDF
+      pdf.save(`${diagramTitle.value || 'diagram'}.pdf`);
+
+      status.textContent = 'Ready';
+      showNotification('Exported as PDF', 'success');
+    };
+
+    img.onerror = () => {
+      status.textContent = 'Ready';
+      showNotification('Failed to generate PDF', 'error');
+    };
+
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+
+  } catch (error) {
+    console.error('Export PDF error:', error);
+    status.textContent = 'Ready';
+    showNotification('Failed to export PDF', 'error');
   }
 }
 
@@ -431,9 +560,64 @@ function handleKeyboard(e) {
     resetZoom();
   }
 
-  // Escape: Close modal
+  // Arrow keys: Move selected node (only when drag mode is enabled)
+  if (dragState.enabled && dragState.currentNode && !e.ctrlKey && !e.shiftKey) {
+    const moveAmount = e.altKey ? 1 : 10; // Fine movement with Alt key
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault();
+        moveNodeByKey(dragState.currentNode, -moveAmount, 0);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        moveNodeByKey(dragState.currentNode, moveAmount, 0);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        moveNodeByKey(dragState.currentNode, 0, -moveAmount);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        moveNodeByKey(dragState.currentNode, 0, moveAmount);
+        break;
+    }
+  }
+
+  // Escape: Close modal or deselect node
   if (e.key === 'Escape') {
     document.getElementById('helpModal').style.display = 'none';
+    if (dragState.currentNode) {
+      dragState.currentNode.classList.remove('selected');
+      dragState.currentNode = null;
+    }
+  }
+}
+
+// Move node by keyboard
+async function moveNodeByKey(node, deltaX, deltaY) {
+  const transform = node.getAttribute('transform') || '';
+  const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
+
+  if (!translateMatch) return;
+
+  let newX = parseFloat(translateMatch[1]) + deltaX;
+  let newY = parseFloat(translateMatch[2]) + deltaY;
+
+  // Apply grid snapping if enabled
+  if (dragState.gridSnap) {
+    newX = Math.round(newX / dragState.gridSize) * dragState.gridSize;
+    newY = Math.round(newY / dragState.gridSize) * dragState.gridSize;
+  }
+
+  const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+  const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
+  node.setAttribute('transform', newTransform);
+
+  // Save layout
+  const svg = preview.querySelector('svg');
+  if (svg && dragState.diagramHash) {
+    await saveLayout(svg, dragState.diagramHash);
   }
 }
 
@@ -514,4 +698,400 @@ const savedTheme = localStorage.getItem('theme');
 if (savedTheme === 'dark') {
   document.body.classList.add('dark-theme');
   window.mermaid?.initialize({ theme: 'dark' });
+}
+
+// ============================================
+// Drag and Drop Functionality
+// ============================================
+
+// Enable node dragging in preview
+function enableNodeDragging() {
+  const svg = preview.querySelector('svg');
+  if (!svg) return;
+
+  // Store reference to cleanup handlers if needed
+  preview._dragHandlers = [];
+}
+
+// Toggle drag mode
+function toggleDragMode() {
+  const btn = document.getElementById('dragModeBtn');
+  dragState.enabled = !dragState.enabled;
+
+  const svg = preview.querySelector('svg');
+  if (!svg) return;
+
+  if (dragState.enabled) {
+    // Enable drag mode
+    btn.classList.add('active');
+    preview.classList.add('drag-mode');
+    showNotification('Drag mode enabled', 'success');
+
+    // Make nodes draggable
+    makeNodesDraggable(svg);
+  } else {
+    // Disable drag mode
+    btn.classList.remove('active');
+    preview.classList.remove('drag-mode');
+    showNotification('Drag mode disabled', 'success');
+
+    // Remove drag handlers
+    removeNodeDragHandlers(svg);
+  }
+}
+
+// Make SVG nodes draggable
+function makeNodesDraggable(svg) {
+  // Find all node groups
+  const nodeSelectors = [
+    'g.node',
+    'g.nodes > g',
+    'g[class*="node"]',
+    'rect[class*="node"]',
+    'circle',
+    'ellipse',
+    'polygon'
+  ];
+
+  const nodes = svg.querySelectorAll(nodeSelectors.join(', '));
+
+  nodes.forEach(node => {
+    // Get the parent group if this is a shape element
+    const draggableElement = node.tagName === 'g' ? node : node.closest('g');
+    if (!draggableElement) return;
+
+    // Skip if already has drag handler
+    if (draggableElement._hasDragHandler) return;
+    draggableElement._hasDragHandler = true;
+
+    // Add visual feedback
+    draggableElement.style.cursor = 'grab';
+
+    // Mouse down
+    const mouseDownHandler = (e) => {
+      if (!dragState.enabled) return;
+      e.stopPropagation();
+      e.preventDefault();
+
+      // Remove selection from previous node
+      if (dragState.currentNode && dragState.currentNode !== draggableElement) {
+        dragState.currentNode.classList.remove('selected');
+      }
+
+      dragState.dragging = true;
+      dragState.currentNode = draggableElement;
+      draggableElement.style.cursor = 'grabbing';
+
+      // Mark as selected
+      draggableElement.classList.add('selected');
+
+      // Get current transform
+      const transform = draggableElement.getAttribute('transform') || '';
+      const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
+
+      const currentX = translateMatch ? parseFloat(translateMatch[1]) : 0;
+      const currentY = translateMatch ? parseFloat(translateMatch[2]) : 0;
+
+      // Calculate offset
+      const svgPoint = svg.createSVGPoint();
+      svgPoint.x = e.clientX;
+      svgPoint.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      const point = svgPoint.matrixTransform(ctm.inverse());
+
+      dragState.offset = {
+        x: point.x - currentX,
+        y: point.y - currentY
+      };
+
+      // Add dragging class
+      draggableElement.classList.add('dragging');
+    };
+
+    draggableElement.addEventListener('mousedown', mouseDownHandler);
+    draggableElement._mouseDownHandler = mouseDownHandler;
+  });
+
+  // Mouse move on SVG
+  const mouseMoveHandler = (e) => {
+    if (!dragState.dragging || !dragState.currentNode) return;
+    e.preventDefault();
+
+    const svgPoint = svg.createSVGPoint();
+    svgPoint.x = e.clientX;
+    svgPoint.y = e.clientY;
+    const ctm = svg.getScreenCTM();
+    const point = svgPoint.matrixTransform(ctm.inverse());
+
+    let newX = point.x - dragState.offset.x;
+    let newY = point.y - dragState.offset.y;
+
+    // Apply grid snapping if enabled
+    if (dragState.gridSnap) {
+      newX = Math.round(newX / dragState.gridSize) * dragState.gridSize;
+      newY = Math.round(newY / dragState.gridSize) * dragState.gridSize;
+    }
+
+    // Get existing transform and preserve other transforms
+    const transform = dragState.currentNode.getAttribute('transform') || '';
+    const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+
+    // Set new transform
+    const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
+    dragState.currentNode.setAttribute('transform', newTransform);
+  };
+
+  // Mouse up
+  const mouseUpHandler = async (e) => {
+    if (dragState.dragging && dragState.currentNode) {
+      dragState.currentNode.style.cursor = 'grab';
+      dragState.currentNode.classList.remove('dragging');
+
+      // Save layout after drag
+      await saveLayout(svg, dragState.diagramHash);
+
+      dragState.currentNode = null;
+      dragState.dragging = false;
+    }
+  };
+
+  svg.addEventListener('mousemove', mouseMoveHandler);
+  svg.addEventListener('mouseup', mouseUpHandler);
+  svg.addEventListener('mouseleave', mouseUpHandler);
+
+  // Store handlers for cleanup
+  svg._dragHandlers = {
+    mouseMoveHandler,
+    mouseUpHandler
+  };
+}
+
+// Remove drag handlers
+function removeNodeDragHandlers(svg) {
+  // Remove node handlers
+  const nodes = svg.querySelectorAll('g, rect, circle, ellipse, polygon');
+  nodes.forEach(node => {
+    if (node._mouseDownHandler) {
+      node.removeEventListener('mousedown', node._mouseDownHandler);
+      delete node._mouseDownHandler;
+      delete node._hasDragHandler;
+      node.style.cursor = '';
+      node.classList.remove('dragging');
+    }
+  });
+
+  // Remove SVG handlers
+  if (svg._dragHandlers) {
+    svg.removeEventListener('mousemove', svg._dragHandlers.mouseMoveHandler);
+    svg.removeEventListener('mouseup', svg._dragHandlers.mouseUpHandler);
+    svg.removeEventListener('mouseleave', svg._dragHandlers.mouseUpHandler);
+    delete svg._dragHandlers;
+  }
+}
+
+// Generate hash from string
+async function generateHash(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex.substring(0, 16); // Use first 16 chars
+}
+
+// Save layout to storage
+async function saveLayout(svg, diagramHash) {
+  try {
+    const layout = {};
+
+    // Get all nodes with transforms
+    const nodes = svg.querySelectorAll('g[transform*="translate"]');
+    nodes.forEach((node, index) => {
+      const transform = node.getAttribute('transform');
+      const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
+
+      if (translateMatch) {
+        const nodeId = `node-${index}`;
+        layout[nodeId] = {
+          x: parseFloat(translateMatch[1]),
+          y: parseFloat(translateMatch[2])
+        };
+      }
+    });
+
+    // Get existing layouts
+    const result = await chrome.storage.local.get(['diagramLayouts']);
+    const layouts = result.diagramLayouts || {};
+
+    // Save this diagram's layout
+    layouts[diagramHash] = {
+      layout: layout,
+      timestamp: new Date().toISOString()
+    };
+
+    await chrome.storage.local.set({ diagramLayouts: layouts });
+
+    console.log('Layout saved for diagram:', diagramHash);
+    showNotification('Layout saved', 'success');
+  } catch (error) {
+    console.error('Error saving layout:', error);
+  }
+}
+
+// Restore layout from storage
+async function restoreLayout(diagramHash) {
+  try {
+    const result = await chrome.storage.local.get(['diagramLayouts']);
+    const layouts = result.diagramLayouts || {};
+
+    const savedLayout = layouts[diagramHash];
+    if (!savedLayout) return;
+
+    const svg = preview.querySelector('svg');
+    if (!svg) return;
+
+    const nodes = svg.querySelectorAll('g[transform*="translate"]');
+    nodes.forEach((node, index) => {
+      const nodeId = `node-${index}`;
+      const position = savedLayout.layout[nodeId];
+
+      if (position) {
+        const transform = node.getAttribute('transform') || '';
+        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+        const newTransform = `translate(${position.x},${position.y}) ${otherTransforms}`.trim();
+        node.setAttribute('transform', newTransform);
+      }
+    });
+
+    console.log('Layout restored for diagram:', diagramHash);
+  } catch (error) {
+    console.error('Error restoring layout:', error);
+  }
+}
+
+// Reset layout to original
+async function resetLayout() {
+  try {
+    if (!dragState.diagramHash) {
+      showNotification('No diagram to reset', 'error');
+      return;
+    }
+
+    // Remove saved layout
+    const result = await chrome.storage.local.get(['diagramLayouts']);
+    const layouts = result.diagramLayouts || {};
+
+    if (layouts[dragState.diagramHash]) {
+      delete layouts[dragState.diagramHash];
+      await chrome.storage.local.set({ diagramLayouts: layouts });
+    }
+
+    // Re-render the diagram
+    await updatePreview();
+
+    showNotification('Layout reset to original', 'success');
+    console.log('Layout reset for diagram:', dragState.diagramHash);
+  } catch (error) {
+    console.error('Error resetting layout:', error);
+    showNotification('Failed to reset layout', 'error');
+  }
+}
+
+// Toggle grid snap
+function toggleGridSnap() {
+  const btn = document.getElementById('gridSnapBtn');
+  dragState.gridSnap = !dragState.gridSnap;
+
+  if (dragState.gridSnap) {
+    btn.classList.add('active');
+    showNotification(`Grid snap enabled (${dragState.gridSize}px)`, 'success');
+  } else {
+    btn.classList.remove('active');
+    showNotification('Grid snap disabled', 'success');
+  }
+}
+
+// Align nodes
+async function alignNodes(alignment) {
+  const svg = preview.querySelector('svg');
+  if (!svg) {
+    showNotification('No diagram to align', 'error');
+    return;
+  }
+
+  const nodes = svg.querySelectorAll('g[transform*="translate"]');
+  if (nodes.length === 0) {
+    showNotification('No nodes to align', 'error');
+    return;
+  }
+
+  // Get all node positions and bounding boxes
+  const nodeData = [];
+  nodes.forEach((node, index) => {
+    const transform = node.getAttribute('transform');
+    const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
+    if (translateMatch) {
+      const bbox = node.getBBox();
+      nodeData.push({
+        node,
+        index,
+        x: parseFloat(translateMatch[1]),
+        y: parseFloat(translateMatch[2]),
+        bbox
+      });
+    }
+  });
+
+  if (nodeData.length === 0) return;
+
+  // Calculate alignment position
+  let alignX, alignY;
+
+  switch (alignment) {
+    case 'left':
+      alignX = Math.min(...nodeData.map(d => d.x));
+      nodeData.forEach(data => {
+        const transform = data.node.getAttribute('transform') || '';
+        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+        const newTransform = `translate(${alignX},${data.y}) ${otherTransforms}`.trim();
+        data.node.setAttribute('transform', newTransform);
+      });
+      break;
+
+    case 'center':
+      const minX = Math.min(...nodeData.map(d => d.x + d.bbox.x));
+      const maxX = Math.max(...nodeData.map(d => d.x + d.bbox.x + d.bbox.width));
+      const centerX = (minX + maxX) / 2;
+
+      nodeData.forEach(data => {
+        const nodeCenterX = data.x + data.bbox.x + data.bbox.width / 2;
+        const offsetX = centerX - nodeCenterX;
+        const newX = data.x + offsetX;
+
+        const transform = data.node.getAttribute('transform') || '';
+        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+        const newTransform = `translate(${newX},${data.y}) ${otherTransforms}`.trim();
+        data.node.setAttribute('transform', newTransform);
+      });
+      break;
+
+    case 'right':
+      const maxRight = Math.max(...nodeData.map(d => d.x + d.bbox.x + d.bbox.width));
+      nodeData.forEach(data => {
+        const nodeRight = data.x + data.bbox.x + data.bbox.width;
+        const offsetX = maxRight - nodeRight;
+        const newX = data.x + offsetX;
+
+        const transform = data.node.getAttribute('transform') || '';
+        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+        const newTransform = `translate(${newX},${data.y}) ${otherTransforms}`.trim();
+        data.node.setAttribute('transform', newTransform);
+      });
+      break;
+  }
+
+  // Save layout after alignment
+  await saveLayout(svg, dragState.diagramHash);
+
+  showNotification(`Nodes aligned ${alignment}`, 'success');
 }
