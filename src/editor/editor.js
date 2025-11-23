@@ -1,19 +1,62 @@
-// Editor state
+/**
+ * ==============================================
+ * MERMAID DIAGRAM EDITOR - MAIN SCRIPT
+ * ==============================================
+ *
+ * This editor provides a full-featured environment for creating
+ * and editing Mermaid diagrams with live preview, drag-and-drop
+ * node repositioning, and multiple export formats.
+ *
+ * Key Features:
+ * - Live preview with real-time rendering
+ * - Interactive drag-and-drop for repositioning nodes
+ * - Grid snapping and alignment tools
+ * - Export to PNG, SVG, and PDF
+ * - Layout persistence across sessions
+ * - Keyboard shortcuts for productivity
+ */
+
+// ==============================================
+// GLOBAL STATE
+// ==============================================
+
+/**
+ * Current diagram being edited
+ * @type {Object|null} Contains id, title, code, type, timestamps
+ */
 let currentDiagram = null;
+
+/**
+ * Timer for debouncing preview updates
+ * @type {number|null}
+ */
 let debounceTimer = null;
+
+/**
+ * Current zoom level percentage (100 = normal)
+ * @type {number}
+ */
 let zoomLevel = 100;
+
+/**
+ * State object for drag-and-drop functionality
+ * @type {Object}
+ */
 let dragState = {
-  enabled: false,
-  dragging: false,
-  currentNode: null,
-  offset: { x: 0, y: 0 },
-  diagramHash: null,
-  gridSnap: false,
-  gridSize: 10,
-  selectedNodes: []
+  enabled: false,        // Whether drag mode is currently active
+  dragging: false,       // Whether user is currently dragging a node
+  currentNode: null,     // The SVG element currently being dragged
+  offset: { x: 0, y: 0 }, // Mouse offset from node origin during drag
+  diagramHash: null,     // SHA-256 hash identifying the current diagram
+  gridSnap: false,       // Whether grid snapping is enabled
+  gridSize: 10,          // Grid size in pixels (default 10px)
+  selectedNodes: []      // Array of currently selected nodes (future feature)
 };
 
-// DOM elements
+// ==============================================
+// DOM ELEMENT REFERENCES
+// ==============================================
+
 const codeEditor = document.getElementById('codeEditor');
 const preview = document.getElementById('preview');
 const errorMessage = document.getElementById('errorMessage');
@@ -24,7 +67,14 @@ const status = document.getElementById('status');
 const lastSaved = document.getElementById('lastSaved');
 const zoomLevelDisplay = document.getElementById('zoomLevel');
 
-// Initialize
+// ==============================================
+// INITIALIZATION
+// ==============================================
+
+/**
+ * Initialize the editor when DOM is loaded
+ * Sets up all event listeners and loads initial content
+ */
 document.addEventListener('DOMContentLoaded', () => {
   loadFromURL();
   setupEventListeners();
@@ -32,7 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStats();
 });
 
-// Load diagram from URL parameters
+/**
+ * Load diagram code from URL parameters
+ * Useful for opening diagrams from external links
+ */
 function loadFromURL() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -41,7 +94,10 @@ function loadFromURL() {
   }
 }
 
-// Setup event listeners
+/**
+ * Setup all event listeners for UI interactions
+ * Connects buttons, inputs, and keyboard shortcuts to their handlers
+ */
 function setupEventListeners() {
   // Code editor changes
   codeEditor.addEventListener('input', () => {
@@ -93,7 +149,14 @@ function setupEventListeners() {
   setupResizeHandle();
 }
 
-// Debounced preview update
+// ==============================================
+// PREVIEW RENDERING
+// ==============================================
+
+/**
+ * Debounce preview updates to avoid excessive re-rendering
+ * Waits 500ms after user stops typing before updating
+ */
 function debounceUpdate() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
@@ -101,7 +164,13 @@ function debounceUpdate() {
   }, 500);
 }
 
-// Update preview
+/**
+ * Update the live preview with current diagram code
+ * Renders the Mermaid diagram, enables drag functionality,
+ * and restores any saved layout positions
+ *
+ * @async
+ */
 async function updatePreview() {
   const code = codeEditor.value.trim();
 
@@ -147,7 +216,10 @@ async function updatePreview() {
   }
 }
 
-// Update stats
+/**
+ * Update editor statistics (line count, character count)
+ * Called whenever the code editor content changes
+ */
 function updateStats() {
   const code = codeEditor.value;
   const lines = code.split('\n').length;
@@ -157,7 +229,16 @@ function updateStats() {
   charCount.textContent = `Characters: ${chars}`;
 }
 
-// Save diagram
+// ==============================================
+// DIAGRAM STORAGE
+// ==============================================
+
+/**
+ * Save the current diagram to Chrome Storage
+ * Creates a new diagram if none exists, updates existing one
+ *
+ * @async
+ */
 async function saveDiagram() {
   try {
     const diagram = {
@@ -196,7 +277,16 @@ async function saveDiagram() {
   }
 }
 
-// Export as PNG
+// ==============================================
+// EXPORT FUNCTIONS
+// ==============================================
+
+/**
+ * Export the current diagram as PNG image
+ * Converts SVG to canvas, then to PNG blob for download
+ *
+ * @async
+ */
 async function exportAsPNG() {
   try {
     const svgElement = preview.querySelector('svg');
@@ -232,7 +322,10 @@ async function exportAsPNG() {
   }
 }
 
-// Export as SVG
+/**
+ * Export the current diagram as SVG file
+ * Preserves vector quality for scaling
+ */
 function exportAsSVG() {
   try {
     const svgElement = preview.querySelector('svg');
@@ -251,7 +344,13 @@ function exportAsSVG() {
   }
 }
 
-// Export as PDF
+/**
+ * Export the current diagram as PDF document
+ * Uses jsPDF library to generate PDF with automatic page orientation
+ * Scales diagram to fit A4 page with margins
+ *
+ * @async
+ */
 async function exportAsPDF() {
   try {
     const svgElement = preview.querySelector('svg');
@@ -260,7 +359,7 @@ async function exportAsPDF() {
       return;
     }
 
-    // Check if jsPDF is available
+    // Check if jsPDF library is loaded
     if (typeof window.jspdf === 'undefined') {
       showNotification('PDF library not loaded', 'error');
       return;
@@ -268,11 +367,11 @@ async function exportAsPDF() {
 
     status.textContent = 'Generating PDF...';
 
-    // Get SVG dimensions
+    // Get SVG dimensions from attributes or viewBox
     const svgWidth = parseFloat(svgElement.getAttribute('width') || svgElement.viewBox.baseVal.width || 800);
     const svgHeight = parseFloat(svgElement.getAttribute('height') || svgElement.viewBox.baseVal.height || 600);
 
-    // Convert SVG to image first
+    // Convert SVG to image data URL for PDF embedding
     const svgData = new XMLSerializer().serializeToString(svgElement);
     const img = new Image();
 
@@ -354,14 +453,23 @@ async function exportAsPDF() {
   }
 }
 
-// Copy code
+// ==============================================
+// UI UTILITIES
+// ==============================================
+
+/**
+ * Copy diagram code to clipboard
+ */
 function copyCode() {
   codeEditor.select();
   document.execCommand('copy');
   showNotification('Code copied to clipboard', 'success');
 }
 
-// Toggle theme
+/**
+ * Toggle between light and dark themes
+ * Persists theme choice in localStorage
+ */
 function toggleTheme() {
   document.body.classList.toggle('dark-theme');
   const isDark = document.body.classList.contains('dark-theme');
@@ -700,11 +808,15 @@ if (savedTheme === 'dark') {
   window.mermaid?.initialize({ theme: 'dark' });
 }
 
-// ============================================
-// Drag and Drop Functionality
-// ============================================
+// ==============================================
+// DRAG AND DROP FUNCTIONALITY
+// ==============================================
 
-// Enable node dragging in preview
+/**
+ * Enable node dragging capability in the preview
+ * Initializes storage for drag event handlers
+ * Called after each diagram render
+ */
 function enableNodeDragging() {
   const svg = preview.querySelector('svg');
   if (!svg) return;
@@ -713,7 +825,11 @@ function enableNodeDragging() {
   preview._dragHandlers = [];
 }
 
-// Toggle drag mode
+/**
+ * Toggle drag mode on/off
+ * When enabled, allows users to click and drag diagram nodes
+ * Provides visual feedback and enables grid snapping if configured
+ */
 function toggleDragMode() {
   const btn = document.getElementById('dragModeBtn');
   dragState.enabled = !dragState.enabled;
@@ -740,34 +856,41 @@ function toggleDragMode() {
   }
 }
 
-// Make SVG nodes draggable
+/**
+ * Make all SVG nodes in the diagram draggable
+ * Attaches mouse event handlers to enable dragging
+ *
+ * @param {SVGElement} svg - The SVG element containing the diagram
+ */
 function makeNodesDraggable(svg) {
-  // Find all node groups
+  // CSS selectors for different node types in Mermaid diagrams
   const nodeSelectors = [
-    'g.node',
-    'g.nodes > g',
-    'g[class*="node"]',
-    'rect[class*="node"]',
-    'circle',
-    'ellipse',
-    'polygon'
+    'g.node',              // Standard flowchart nodes
+    'g.nodes > g',         // Node groups
+    'g[class*="node"]',    // Any element with "node" in class
+    'rect[class*="node"]', // Rectangle nodes
+    'circle',              // Circle nodes
+    'ellipse',             // Ellipse nodes
+    'polygon'              // Polygon nodes (diamonds, etc.)
   ];
 
   const nodes = svg.querySelectorAll(nodeSelectors.join(', '));
 
   nodes.forEach(node => {
-    // Get the parent group if this is a shape element
+    // Get the parent group element if this is a shape element
     const draggableElement = node.tagName === 'g' ? node : node.closest('g');
     if (!draggableElement) return;
 
-    // Skip if already has drag handler
+    // Skip if already has drag handler to avoid duplicates
     if (draggableElement._hasDragHandler) return;
     draggableElement._hasDragHandler = true;
 
-    // Add visual feedback
+    // Add visual feedback (grab cursor)
     draggableElement.style.cursor = 'grab';
 
-    // Mouse down
+    /**
+     * Handle mouse down event - start dragging
+     */
     const mouseDownHandler = (e) => {
       if (!dragState.enabled) return;
       e.stopPropagation();
@@ -812,31 +935,36 @@ function makeNodesDraggable(svg) {
     draggableElement._mouseDownHandler = mouseDownHandler;
   });
 
-  // Mouse move on SVG
+  /**
+   * Handle mouse move event - update node position while dragging
+   * Applies grid snapping if enabled
+   */
   const mouseMoveHandler = (e) => {
     if (!dragState.dragging || !dragState.currentNode) return;
     e.preventDefault();
 
+    // Convert mouse coordinates to SVG coordinate space
     const svgPoint = svg.createSVGPoint();
     svgPoint.x = e.clientX;
     svgPoint.y = e.clientY;
     const ctm = svg.getScreenCTM();
     const point = svgPoint.matrixTransform(ctm.inverse());
 
+    // Calculate new position relative to original click point
     let newX = point.x - dragState.offset.x;
     let newY = point.y - dragState.offset.y;
 
-    // Apply grid snapping if enabled
+    // Apply grid snapping if enabled (rounds to nearest grid point)
     if (dragState.gridSnap) {
       newX = Math.round(newX / dragState.gridSize) * dragState.gridSize;
       newY = Math.round(newY / dragState.gridSize) * dragState.gridSize;
     }
 
-    // Get existing transform and preserve other transforms
+    // Get existing transform and preserve non-translate transforms
     const transform = dragState.currentNode.getAttribute('transform') || '';
     const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
 
-    // Set new transform
+    // Apply new position
     const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
     dragState.currentNode.setAttribute('transform', newTransform);
   };

@@ -1,10 +1,26 @@
-// Autocomplete suggestions for Mermaid diagrams
+/**
+ * ==============================================
+ * MERMAID AUTOCOMPLETE ENGINE
+ * ==============================================
+ *
+ * Provides context-aware autocomplete suggestions for Mermaid diagrams.
+ * Analyzes code context and cursor position to offer relevant suggestions.
+ *
+ * Features:
+ * - Context-aware suggestions based on diagram type
+ * - Keyword completion (graph, sequenceDiagram, etc.)
+ * - Syntax completion (arrows, node shapes, etc.)
+ * - Snippet suggestions with pre-filled templates
+ * - Smart filtering based on partial input
+ */
 
 /**
  * Get autocomplete suggestions based on current context
- * @param {string} code - Full code
- * @param {number} cursorPos - Cursor position
- * @returns {Array} Array of suggestions
+ * Analyzes the code and cursor position to provide relevant suggestions
+ *
+ * @param {string} code - Full diagram code
+ * @param {number} cursorPos - Current cursor position in the code
+ * @returns {Array} Array of suggestion objects with text, description, and snippet
  */
 export function getAutocompleteSuggestions(code, cursorPos) {
   const beforeCursor = code.substring(0, cursorPos);

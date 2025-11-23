@@ -1,9 +1,29 @@
-// Mermaid diagram validator
+/**
+ * ==============================================
+ * MERMAID DIAGRAM VALIDATOR
+ * ==============================================
+ *
+ * Provides real-time validation for Mermaid diagram code.
+ * Detects syntax errors, warnings, and provides quick fixes.
+ *
+ * Features:
+ * - Diagram type detection
+ * - Type-specific validation (flowchart, sequence, class, C4, etc.)
+ * - Common syntax error detection
+ * - Warning for potential issues
+ * - Quick fix suggestions
+ */
 
 /**
  * Validate Mermaid code and return errors/warnings
+ * Main entry point for validation
+ *
  * @param {string} code - The Mermaid code to validate
- * @returns {Object} Validation result with errors and warnings
+ * @returns {Object} Validation result with errors, warnings, and diagram type
+ * @returns {boolean} result.isValid - Whether code is valid
+ * @returns {Array} result.errors - Array of error objects
+ * @returns {Array} result.warnings - Array of warning objects
+ * @returns {string} result.diagramType - Detected diagram type
  */
 export function validateMermaidCode(code) {
   const errors = [];

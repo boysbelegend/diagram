@@ -1,9 +1,25 @@
-// Simple syntax highlighting for Mermaid diagrams
+/**
+ * ==============================================
+ * MERMAID SYNTAX HIGHLIGHTER
+ * ==============================================
+ *
+ * Provides syntax highlighting for Mermaid diagram code.
+ * Colorizes keywords, operators, strings, and comments for better readability.
+ *
+ * Features:
+ * - Keyword highlighting (graph, sequenceDiagram, etc.)
+ * - Operator highlighting (arrows, connectors)
+ * - String and comment highlighting
+ * - Line number support
+ * - Minimal performance impact
+ */
 
 /**
- * Apply syntax highlighting to code
+ * Apply syntax highlighting to Mermaid code
+ * Returns HTML with colored syntax elements
+ *
  * @param {string} code - The Mermaid code to highlight
- * @returns {string} HTML with syntax highlighting
+ * @returns {string} HTML string with syntax highlighting classes
  */
 export function highlightSyntax(code) {
   const lines = code.split('\n');

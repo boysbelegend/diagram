@@ -1,31 +1,58 @@
-// Content script for rendering Mermaid diagrams on web pages
+/**
+ * ==============================================
+ * MERMAID DIAGRAM VIEWER - CONTENT SCRIPT
+ * ==============================================
+ *
+ * This content script runs on all web pages and automatically
+ * detects and renders Mermaid diagrams found in code blocks.
+ *
+ * Features:
+ * - Auto-detection of Mermaid code blocks
+ * - Interactive drag-and-drop for repositioning nodes
+ * - Layout persistence across page visits
+ * - Action buttons (Edit, Copy, View Code, Drag Mode, Reset)
+ * - Dynamic content monitoring
+ */
 
+/**
+ * Main initialization function
+ * Runs immediately when script loads
+ */
 (async function() {
   'use strict';
 
-  // Load Mermaid library
+  // Load Mermaid library from CDN if not already loaded
   if (!window.mermaid) {
     await loadMermaidLibrary();
   }
 
-  // Initialize Mermaid
+  // Initialize Mermaid with configuration
   window.mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    securityLevel: 'loose',
-    logLevel: 'error'
+    startOnLoad: false,    // We manually control rendering
+    theme: 'default',      // Default light theme
+    securityLevel: 'loose', // Allow interactive features
+    logLevel: 'error'      // Only log errors
   });
 
-  // Find and render all Mermaid code blocks
+  // Find and render all existing Mermaid code blocks
   findAndRenderDiagrams();
 
-  // Watch for dynamically added content
+  // Watch for dynamically added content (SPAs, AJAX)
   observeDOMChanges();
 
   console.log('Mermaid Diagram Viewer: Initialized');
 })();
 
-// Load Mermaid library from CDN
+// ==============================================
+// LIBRARY LOADING
+// ==============================================
+
+/**
+ * Load Mermaid library from CDN
+ * Returns a promise that resolves when library is loaded
+ *
+ * @returns {Promise} Resolves when library is ready
+ */
 function loadMermaidLibrary() {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
@@ -40,14 +67,23 @@ function loadMermaidLibrary() {
   });
 }
 
-// Find and render all Mermaid diagrams
+// ==============================================
+// DIAGRAM DETECTION AND RENDERING
+// ==============================================
+
+/**
+ * Find and render all Mermaid diagrams on the page
+ * Searches for code blocks with mermaid class or language attribute
+ *
+ * @async
+ */
 async function findAndRenderDiagrams() {
-  // Find code blocks with mermaid class or language
+  // Common selectors for Mermaid code blocks across different markdown renderers
   const selectors = [
-    'pre code.language-mermaid',
-    'pre code.mermaid',
-    'code.language-mermaid',
-    'code.mermaid',
+    'pre code.language-mermaid',    // GitHub, GitLab
+    'pre code.mermaid',              // Generic
+    'code.language-mermaid',         // Inline code
+    'code.mermaid',                  // Generic inline
     '.mermaid',
     'pre.mermaid'
   ];
@@ -249,25 +285,42 @@ function observeDOMChanges() {
   });
 }
 
-// Enable node dragging functionality
+// ==============================================
+// DRAG AND DROP FUNCTIONALITY
+// ==============================================
+
+/**
+ * Enable node dragging functionality for a diagram
+ * Initializes drag state for the container
+ *
+ * @param {HTMLElement} container - The diagram container element
+ * @param {string} diagramId - Unique identifier for the diagram
+ * @param {string} diagramHash - SHA-256 hash for layout storage
+ */
 function enableNodeDragging(container, diagramId, diagramHash) {
   const svg = container.querySelector('svg');
   if (!svg) return;
 
-  // Store drag state
+  // Initialize drag state for this diagram
   let dragState = {
-    enabled: false,
-    dragging: false,
-    currentNode: null,
-    offset: { x: 0, y: 0 },
-    diagramHash: diagramHash
+    enabled: false,        // Whether drag mode is active
+    dragging: false,       // Whether currently dragging
+    currentNode: null,     // The node being dragged
+    offset: { x: 0, y: 0 }, // Mouse offset from node origin
+    diagramHash: diagramHash // For layout persistence
   };
 
-  // Store for this container
+  // Store drag state on container for access by event handlers
   container._dragState = dragState;
 }
 
-// Toggle drag mode
+/**
+ * Toggle drag mode on/off for a diagram
+ * Enables or disables the ability to drag nodes
+ *
+ * @param {HTMLElement} container - The diagram container
+ * @param {HTMLElement} button - The drag mode toggle button
+ */
 function toggleDragMode(container, button) {
   const dragState = container._dragState;
   if (!dragState) return;
