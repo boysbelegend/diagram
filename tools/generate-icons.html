@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Icon Generator - Mermaid Diagram Editor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 30px;
+    }
+
+    .preview-section {
+      margin: 30px 0;
+      padding: 30px;
+      background: #f9fafb;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .preview-section h2 {
+      font-size: 16px;
+      color: #374151;
+      margin-bottom: 20px;
+    }
+
+    .icon-previews {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      flex-wrap: wrap;
+    }
+
+    .icon-preview {
+      text-align: center;
+    }
+
+    .icon-preview img {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 10px;
+    }
+
+    .icon-preview p {
+      font-size: 13px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin: 30px 0;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .instructions {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .instructions h3 {
+      color: #1e40af;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .instructions ol {
+      margin-left: 20px;
+      color: #374151;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .success {
+      background: #d1fae5;
+      border: 1px solid #6ee7b7;
+      color: #065f46;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+      display: none;
+    }
+
+    .success.show {
+      display: block;
+      animation: slideIn 0.3s;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Icon Generator</h1>
+    <p class="subtitle">Generate PNG icons for the Mermaid Diagram Editor extension</p>
+
+    <div class="instructions">
+      <h3>📝 Instructions</h3>
+      <ol>
+        <li>Click "Generate All Icons" below</li>
+        <li>Three PNG files will be automatically downloaded</li>
+        <li>Move the downloaded files to <code>assets/icons/</code> folder</li>
+        <li>The files should be named: icon16.png, icon48.png, icon128.png</li>
+      </ol>
+    </div>
+
+    <div class="preview-section">
+      <h2>Icon Previews</h2>
+      <div class="icon-previews">
+        <div class="icon-preview">
+          <img id="preview16" width="16" height="16" alt="16x16">
+          <p>16×16</p>
+        </div>
+        <div class="icon-preview">
+          <img id="preview48" width="48" height="48" alt="48x48">
+          <p>48×48</p>
+        </div>
+        <div class="icon-preview">
+          <img id="preview128" width="128" height="128" alt="128x128">
+          <p>128×128</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button id="generateBtn" onclick="generateAllIcons()">Generate All Icons</button>
+      <button onclick="downloadIcon(16)">Download 16×16</button>
+      <button onclick="downloadIcon(48)">Download 48×48</button>
+      <button onclick="downloadIcon(128)">Download 128×128</button>
+    </div>
+
+    <div id="successMessage" class="success">
+      ✅ All icons generated and downloaded successfully!
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    // SVG icon template
+    const svgTemplate = `
+      <svg width="SIZE" height="SIZE" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect width="SIZE" height="SIZE" fill="url(#grad1)" rx="RADIUS"/>
+        <circle cx="CX" cy="CY1" r="R1" fill="white" opacity="0.95"/>
+        <circle cx="CX2" cy="CY2" r="R2" fill="white" opacity="0.95"/>
+        <circle cx="CX3" cy="CY2" r="R2" fill="white" opacity="0.95"/>
+        <line x1="LX1" y1="LY1" x2="LX2" y2="LY2" stroke="white" stroke-width="STROKE" opacity="0.9" stroke-linecap="round"/>
+        <line x1="LX3" y1="LY3" x2="LX4" y2="LY4" stroke="white" stroke-width="STROKE" opacity="0.9" stroke-linecap="round"/>
+        <circle cx="CX" cy="CX" r="R3" fill="white" opacity="0.6"/>
+      </svg>
+    `;
+
+    function getSVG(size) {
+      const scale = size / 128;
+      return svgTemplate
+        .replace(/SIZE/g, size)
+        .replace(/RADIUS/g, Math.round(24 * scale))
+        .replace(/CX/g, Math.round(64 * scale))
+        .replace(/CY1/g, Math.round(35 * scale))
+        .replace(/R1/g, Math.round(14 * scale))
+        .replace(/CX2/g, Math.round(35 * scale))
+        .replace(/CX3/g, Math.round(93 * scale))
+        .replace(/CY2/g, Math.round(85 * scale))
+        .replace(/R2/g, Math.round(14 * scale))
+        .replace(/R3/g, Math.round(3 * scale))
+        .replace(/LX1/g, Math.round(64 * scale))
+        .replace(/LY1/g, Math.round(49 * scale))
+        .replace(/LX2/g, Math.round(35 * scale))
+        .replace(/LY2/g, Math.round(71 * scale))
+        .replace(/LX3/g, Math.round(64 * scale))
+        .replace(/LY3/g, Math.round(49 * scale))
+        .replace(/LX4/g, Math.round(93 * scale))
+        .replace(/LY4/g, Math.round(71 * scale))
+        .replace(/STROKE/g, Math.max(1, Math.round(4 * scale)));
+    }
+
+    function svgToPng(size) {
+      return new Promise((resolve, reject) => {
+        const svg = getSVG(size);
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = size;
+        canvas.height = size;
+
+        const img = new Image();
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+
+        img.onload = () => {
+          ctx.clearRect(0, 0, size, size);
+          ctx.drawImage(img, 0, 0, size, size);
+
+          canvas.toBlob((pngBlob) => {
+            URL.revokeObjectURL(url);
+            resolve(pngBlob);
+          }, 'image/png');
+        };
+
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function downloadIcon(size) {
+      try {
+        const blob = await svgToPng(size);
+        downloadBlob(blob, `icon${size}.png`);
+      } catch (error) {
+        console.error('Error generating icon:', error);
+        alert('Failed to generate icon. Please try again.');
+      }
+    }
+
+    async function generateAllIcons() {
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+
+      try {
+        // Generate and download all sizes
+        await downloadIcon(16);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        await downloadIcon(48);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        await downloadIcon(128);
+
+        // Show success message
+        document.getElementById('successMessage').classList.add('show');
+
+        setTimeout(() => {
+          document.getElementById('successMessage').classList.remove('show');
+        }, 5000);
+
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to generate icons. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate All Icons';
+      }
+    }
+
+    // Generate previews on load
+    window.addEventListener('load', async () => {
+      try {
+        const blob16 = await svgToPng(16);
+        document.getElementById('preview16').src = URL.createObjectURL(blob16);
+
+        const blob48 = await svgToPng(48);
+        document.getElementById('preview48').src = URL.createObjectURL(blob48);
+
+        const blob128 = await svgToPng(128);
+        document.getElementById('preview128').src = URL.createObjectURL(blob128);
+      } catch (error) {
+        console.error('Error generating previews:', error);
+      }
+    });
+  </script>
+</body>
+</html>

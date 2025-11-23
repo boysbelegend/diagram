@@ -38,10 +38,31 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/editor/editor.html", "assets/*"],
+      "resources": [
+        "src/editor/editor.html",
+        "src/settings/settings.html",
+        "src/library/library.html",
+        "assets/*"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
+  "commands": {
+    "new-diagram": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+N",
+        "mac": "Command+Shift+N"
+      },
+      "description": "Create new diagram"
+    },
+    "open-library": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Open diagram library"
+    }
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   }

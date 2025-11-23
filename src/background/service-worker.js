@@ -264,6 +264,8 @@ chrome.commands.onCommand.addListener((command) => {
     openEditor();
   } else if (command === 'open-editor') {
     openEditor();
+  } else if (command === 'open-library') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/library/library.html') });
   }
 });
 

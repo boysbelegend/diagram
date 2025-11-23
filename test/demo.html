@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid Diagram Test Page</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 40px;
+      font-size: 16px;
+    }
+
+    h2 {
+      color: #374151;
+      margin: 40px 0 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .diagram-section {
+      margin: 30px 0;
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 8px;
+    }
+
+    .diagram-section h3 {
+      color: #4b5563;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+
+    .diagram-section p {
+      color: #6b7280;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+
+    pre {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 15px 0;
+    }
+
+    code {
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+      font-size: 14px;
+    }
+
+    .info-box {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+
+    .info-box p {
+      color: #1e40af;
+      margin: 0;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Mermaid Diagram Test Page</h1>
+    <p class="subtitle">This page contains various Mermaid diagrams to test the extension's auto-rendering feature</p>
+
+    <div class="info-box">
+      <p><strong>📌 How to test:</strong> Install the Mermaid Diagram Editor extension and reload this page. All code blocks below should automatically render as diagrams.</p>
+    </div>
+
+    <!-- Flowchart -->
+    <h2>1. Flowchart</h2>
+    <div class="diagram-section">
+      <h3>Basic Flowchart <span class="badge">Flowchart</span></h3>
+      <p>A simple decision-making flowchart</p>
+      <pre><code class="language-mermaid">graph TD
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great!]
+    B -->|No| D[Debug]
+    D --> B
+    C --> E[End]</code></pre>
+    </div>
+
+    <div class="diagram-section">
+      <h3>Complex Flowchart <span class="badge">Flowchart</span></h3>
+      <p>A more complex process flow</p>
+      <pre><code class="language-mermaid">flowchart TB
+    Start([Start]) --> Input[/Input Data/]
+    Input --> Validate{Valid?}
+    Validate -->|Yes| Process[Process Data]
+    Validate -->|No| Error[Show Error]
+    Process --> Save[(Save to DB)]
+    Save --> Success[/Success Message/]
+    Error --> End([End])
+    Success --> End</code></pre>
+    </div>
+
+    <!-- Sequence Diagram -->
+    <h2>2. Sequence Diagram</h2>
+    <div class="diagram-section">
+      <h3>API Request Flow <span class="badge">Sequence</span></h3>
+      <p>Interaction between client, server, and database</p>
+      <pre><code class="language-mermaid">sequenceDiagram
+    participant Client
+    participant API
+    participant DB
+    participant Cache
+
+    Client->>API: Request Data
+    API->>Cache: Check Cache
+    alt Cache Hit
+        Cache-->>API: Return Cached Data
+    else Cache Miss
+        API->>DB: Query Database
+        DB-->>API: Return Data
+        API->>Cache: Update Cache
+    end
+    API-->>Client: Response</code></pre>
+    </div>
+
+    <!-- Class Diagram -->
+    <h2>3. Class Diagram</h2>
+    <div class="diagram-section">
+      <h3>E-commerce System <span class="badge">Class</span></h3>
+      <p>Class relationships in an e-commerce system</p>
+      <pre><code class="language-mermaid">classDiagram
+    class User {
+        -String id
+        -String username
+        -String email
+        +login()
+        +logout()
+    }
+    class Product {
+        -String id
+        -String name
+        -Float price
+        -Int stock
+        +updateStock()
+    }
+    class Order {
+        -String id
+        -Date createdAt
+        -String status
+        +calculateTotal()
+        +process()
+    }
+    class Payment {
+        -String id
+        -Float amount
+        -String method
+        +process()
+    }
+
+    User "1" --> "*" Order : places
+    Order "1" --> "*" Product : contains
+    Order "1" --> "1" Payment : has</code></pre>
+    </div>
+
+    <!-- C4 Diagram -->
+    <h2>4. C4 Diagram</h2>
+    <div class="diagram-section">
+      <h3>System Context Diagram <span class="badge">C4</span></h3>
+      <p>High-level architecture view</p>
+      <pre><code class="language-mermaid">C4Context
+    title System Context diagram for Online Store
+
+    Person(customer, "Customer", "A customer browsing and purchasing products")
+    System(store, "Online Store", "Allows customers to browse and purchase products")
+    System_Ext(payment, "Payment Gateway", "Processes payments")
+    System_Ext(shipping, "Shipping Service", "Handles product delivery")
+    System_Ext(email, "Email Service", "Sends notifications")
+
+    Rel(customer, store, "Uses")
+    Rel(store, payment, "Processes payments via", "HTTPS")
+    Rel(store, shipping, "Creates shipments via", "API")
+    Rel(store, email, "Sends emails via", "SMTP")</code></pre>
+    </div>
+
+    <!-- ER Diagram -->
+    <h2>5. ER Diagram</h2>
+    <div class="diagram-section">
+      <h3>Database Schema <span class="badge">ER</span></h3>
+      <p>Entity relationships for a blog system</p>
+      <pre><code class="language-mermaid">erDiagram
+    USER ||--o{ POST : creates
+    USER ||--o{ COMMENT : writes
+    POST ||--o{ COMMENT : has
+    POST }o--o{ TAG : tagged_with
+    POST }o--|| CATEGORY : belongs_to
+
+    USER {
+        int id PK
+        string username
+        string email
+        datetime created_at
+    }
+    POST {
+        int id PK
+        int user_id FK
+        string title
+        text content
+        datetime published_at
+    }
+    COMMENT {
+        int id PK
+        int user_id FK
+        int post_id FK
+        text content
+        datetime created_at
+    }
+    TAG {
+        int id PK
+        string name
+    }
+    CATEGORY {
+        int id PK
+        string name
+    }</code></pre>
+    </div>
+
+    <!-- State Diagram -->
+    <h2>6. State Diagram</h2>
+    <div class="diagram-section">
+      <h3>Order State Machine <span class="badge">State</span></h3>
+      <p>Order status transitions</p>
+      <pre><code class="language-mermaid">stateDiagram-v2
+    [*] --> Created
+    Created --> Pending : Submit
+    Pending --> Processing : Payment Confirmed
+    Pending --> Cancelled : Payment Failed
+    Processing --> Shipped : Items Packed
+    Shipped --> Delivered : Customer Received
+    Delivered --> [*]
+    Cancelled --> [*]
+
+    Processing --> Cancelled : Cancel Request
+    Shipped --> Returned : Return Request
+    Returned --> [*]</code></pre>
+    </div>
+
+    <!-- Gantt Chart -->
+    <h2>7. Gantt Chart</h2>
+    <div class="diagram-section">
+      <h3>Project Timeline <span class="badge">Gantt</span></h3>
+      <p>Development project schedule</p>
+      <pre><code class="language-mermaid">gantt
+    title Web Application Development
+    dateFormat YYYY-MM-DD
+    section Planning
+    Requirements Gathering    :a1, 2024-01-01, 14d
+    System Design             :a2, after a1, 10d
+    section Development
+    Backend API               :b1, after a2, 30d
+    Frontend UI               :b2, after a2, 35d
+    Database Setup            :b3, after a2, 7d
+    section Testing
+    Unit Testing              :c1, after b1, 10d
+    Integration Testing       :c2, after b2, 14d
+    section Deployment
+    Staging Deploy            :d1, after c2, 3d
+    Production Deploy         :d2, after d1, 2d</code></pre>
+    </div>
+
+    <!-- Pie Chart -->
+    <h2>8. Pie Chart</h2>
+    <div class="diagram-section">
+      <h3>Technology Stack Distribution <span class="badge">Pie</span></h3>
+      <p>Programming languages usage</p>
+      <pre><code class="language-mermaid">pie title Technology Stack Usage
+    "JavaScript" : 35
+    "Python" : 25
+    "Java" : 20
+    "Go" : 12
+    "Rust" : 8</code></pre>
+    </div>
+
+    <!-- Git Graph -->
+    <h2>9. Git Graph</h2>
+    <div class="diagram-section">
+      <h3>Git Branching Strategy <span class="badge">Git</span></h3>
+      <p>Feature branch workflow</p>
+      <pre><code class="language-mermaid">gitGraph
+    commit
+    commit
+    branch develop
+    checkout develop
+    commit
+    commit
+    branch feature/login
+    checkout feature/login
+    commit
+    commit
+    checkout develop
+    merge feature/login
+    checkout main
+    merge develop
+    commit
+    branch hotfix
+    checkout hotfix
+    commit
+    checkout main
+    merge hotfix
+    checkout develop
+    merge hotfix</code></pre>
+    </div>
+
+    <!-- Mixed Content -->
+    <h2>10. Multiple Diagrams</h2>
+    <div class="diagram-section">
+      <h3>User Journey <span class="badge">Flowchart</span></h3>
+      <p>User registration flow</p>
+      <pre><code class="language-mermaid">graph LR
+    A[Visit Site] --> B{Logged In?}
+    B -->|No| C[Show Login/Register]
+    B -->|Yes| D[Dashboard]
+    C --> E[Fill Form]
+    E --> F{Valid?}
+    F -->|No| E
+    F -->|Yes| G[Create Account]
+    G --> D</code></pre>
+    </div>
+
+    <div class="diagram-section">
+      <h3>Microservices Architecture <span class="badge">C4</span></h3>
+      <p>Container diagram showing microservices</p>
+      <pre><code class="language-mermaid">C4Container
+    title Container Diagram - Microservices Architecture
+
+    Person(user, "User", "Application user")
+
+    Container_Boundary(c1, "Application") {
+        Container(web, "Web App", "React", "User interface")
+        Container(api, "API Gateway", "Node.js", "Routes requests")
+        Container(auth, "Auth Service", "Node.js", "Authentication")
+        Container(product, "Product Service", "Java", "Product management")
+        Container(order, "Order Service", "Python", "Order processing")
+        ContainerDb(db1, "Auth DB", "PostgreSQL", "User data")
+        ContainerDb(db2, "Product DB", "MongoDB", "Product catalog")
+        ContainerDb(db3, "Order DB", "PostgreSQL", "Orders")
+    }
+
+    Rel(user, web, "Uses", "HTTPS")
+    Rel(web, api, "API calls", "HTTPS")
+    Rel(api, auth, "Authenticates")
+    Rel(api, product, "Gets products")
+    Rel(api, order, "Creates orders")
+    Rel(auth, db1, "Reads/Writes")
+    Rel(product, db2, "Reads/Writes")
+    Rel(order, db3, "Reads/Writes")</code></pre>
+    </div>
+
+    <div style="margin-top: 60px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+      <p style="text-align: center; color: #6b7280;">
+        <strong>Mermaid Diagram Editor & Viewer Extension</strong><br>
+        Test Page - All diagrams should render automatically when the extension is installed
+      </p>
+    </div>
+  </div>
+</body>
+</html>

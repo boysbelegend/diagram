@@ -7,21 +7,40 @@ A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diag
 ### Editor
 - **Live Preview**: Real-time diagram rendering as you type
 - **Multiple Diagram Types**: Support for flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, pie charts, git graphs, and **C4 diagrams**
-- **Templates**: Quick start with pre-built templates
-- **Export**: Save diagrams as PNG, SVG, or text files
+- **Syntax Highlighting**: Color-coded syntax for better readability
+- **Auto-completion**: Smart suggestions for Mermaid keywords and syntax
+- **Error Validation**: Real-time error detection and validation
+- **Templates**: Quick start with pre-built templates for all diagram types
+- **Export**: Save diagrams as PNG, SVG, HTML, Markdown, or text files
 - **Dark Mode**: Toggle between light and dark themes
-- **Auto-Save**: Automatically save your work
+- **Auto-Save**: Automatically save your work with configurable intervals
 - **Zoom Controls**: Zoom in/out for detailed viewing
+
+### Diagram Library
+- **Organized Library**: Browse and manage all your diagrams in one place
+- **Search & Filter**: Find diagrams by title, type, or content
+- **Grid/List View**: Switch between grid and list layouts
+- **Quick Actions**: Edit, export, duplicate, or delete diagrams
+- **Sort Options**: Sort by last modified, date created, or title
+
+### Settings
+- **Customizable**: Configure theme, editor preferences, and export settings
+- **Editor Options**: Font size, tab size, line numbers, word wrap
+- **Auto-save Settings**: Control auto-save behavior and intervals
+- **Export Preferences**: Set default export format and quality
+- **Data Management**: Import/export all diagrams, clear data
 
 ### Viewer
 - **Auto-Render**: Automatically renders Mermaid code blocks on any webpage
 - **Quick Actions**: Edit, copy, or view code with one click
 - **Smart Detection**: Finds and renders all Mermaid diagrams on the page
+- **Dynamic Content**: Watches for new diagrams added to the page
 
 ### Storage
-- **Local Storage**: All diagrams saved locally
-- **Recent Diagrams**: Quick access to your recent work
-- **Import/Export**: Backup and restore your diagrams
+- **Local Storage**: All diagrams saved locally in browser
+- **Recent Diagrams**: Quick access to your recent work in popup
+- **Import/Export**: Backup and restore your diagrams as JSON
+- **Storage Statistics**: View diagram count and storage usage
 
 ## Supported Diagram Types
 
@@ -69,6 +88,11 @@ A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diag
 
 ### Keyboard Shortcuts
 
+**Global Shortcuts:**
+- `Ctrl+Shift+N` (Mac: `Cmd+Shift+N`) - Create new diagram
+- `Ctrl+Shift+L` (Mac: `Cmd+Shift+L`) - Open diagram library
+
+**Editor Shortcuts:**
 - `Ctrl+S` - Save diagram
 - `Ctrl+Enter` - Update preview
 - `Ctrl++` - Zoom in
@@ -79,18 +103,31 @@ A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diag
 
 ```
 diagram/
-├── manifest.json           # Extension manifest
+├── manifest.json           # Extension manifest (Manifest V3)
 ├── src/
-│   ├── popup/             # Extension popup
-│   ├── editor/            # Full page editor
-│   ├── content/           # Content script for viewing
+│   ├── popup/             # Extension popup UI
+│   ├── editor/            # Full page editor with live preview
+│   ├── library/           # Diagram library/management page
+│   ├── settings/          # Settings configuration page
+│   ├── content/           # Content script for web page viewing
 │   ├── background/        # Background service worker
 │   └── utils/             # Utility functions
+│       ├── storage.js     # Storage management
+│       ├── export.js      # Export functionality
+│       ├── syntax-highlighter.js  # Syntax highlighting
+│       ├── autocomplete.js        # Auto-completion
+│       └── validator.js           # Code validation
 ├── assets/
-│   ├── icons/             # Extension icons
-│   └── templates/         # Diagram templates
-├── styles/                # Common styles
-└── README.md
+│   ├── icons/             # Extension icons (16, 48, 128)
+│   └── templates/         # Diagram templates with examples
+├── styles/
+│   └── common.css         # Shared styles and themes
+├── tools/
+│   └── generate-icons.html # Icon generation tool
+├── test/
+│   └── demo.html          # Test page with sample diagrams
+├── README.md
+└── INSTALLATION.md
 ```
 
 ## Development

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Diagrams - Mermaid Diagram Editor</title>
+  <link rel="stylesheet" href="library.css">
+</head>
+<body>
+  <div class="library-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1>📚 My Diagrams</h1>
+        <span id="diagramCount" class="count-badge">0 diagrams</span>
+      </div>
+      <div class="header-right">
+        <button id="newDiagramBtn" class="btn-primary">
+          <span>+</span> New Diagram
+        </button>
+        <button id="settingsBtn" class="btn-icon" title="Settings">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search diagrams..."
+          class="search-input"
+        >
+      </div>
+
+      <div class="filter-group">
+        <label>Filter:</label>
+        <select id="typeFilter" class="filter-select">
+          <option value="all">All Types</option>
+          <option value="flowchart">Flowchart</option>
+          <option value="sequence">Sequence</option>
+          <option value="class">Class</option>
+          <option value="c4">C4</option>
+          <option value="er">ER</option>
+          <option value="state">State</option>
+          <option value="gantt">Gantt</option>
+          <option value="pie">Pie</option>
+          <option value="git">Git</option>
+        </select>
+
+        <select id="sortBy" class="filter-select">
+          <option value="updated">Last Modified</option>
+          <option value="created">Date Created</option>
+          <option value="title">Title (A-Z)</option>
+        </select>
+
+        <button id="viewGridBtn" class="btn-view active" title="Grid View">⊞</button>
+        <button id="viewListBtn" class="btn-view" title="List View">☰</button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <main class="main-content">
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">📊</div>
+        <h2>No diagrams yet</h2>
+        <p>Create your first Mermaid diagram to get started</p>
+        <button class="btn-primary" onclick="createNewDiagram()">
+          <span>+</span> Create Diagram
+        </button>
+      </div>
+
+      <!-- Diagram Grid -->
+      <div id="diagramGrid" class="diagram-grid" style="display: none;">
+        <!-- Diagrams will be inserted here -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <h3>Delete Diagram?</h3>
+      <p>Are you sure you want to delete "<span id="deleteTitle"></span>"?</p>
+      <p class="warning-text">This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button id="cancelDeleteBtn" class="btn-secondary">Cancel</button>
+        <button id="confirmDeleteBtn" class="btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div id="contextMenu" class="context-menu" style="display: none;">
+    <button class="context-item" data-action="open">
+      <span class="icon">✏️</span> Open
+    </button>
+    <button class="context-item" data-action="duplicate">
+      <span class="icon">📋</span> Duplicate
+    </button>
+    <button class="context-item" data-action="export">
+      <span class="icon">📤</span> Export
+    </button>
+    <div class="context-divider"></div>
+    <button class="context-item danger" data-action="delete">
+      <span class="icon">🗑️</span> Delete
+    </button>
+  </div>
+
+  <script src="library.js"></script>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Mermaid Diagram Editor</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="settings-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <h1>⚙️ Settings</h1>
+      </div>
+      <nav class="nav">
+        <a href="#general" class="nav-item active" data-section="general">
+          <span class="icon">🎨</span>
+          General
+        </a>
+        <a href="#editor" class="nav-item" data-section="editor">
+          <span class="icon">✏️</span>
+          Editor
+        </a>
+        <a href="#storage" class="nav-item" data-section="storage">
+          <span class="icon">💾</span>
+          Storage
+        </a>
+        <a href="#export" class="nav-item" data-section="export">
+          <span class="icon">📤</span>
+          Export
+        </a>
+        <a href="#about" class="nav-item" data-section="about">
+          <span class="icon">ℹ️</span>
+          About
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="backBtn" class="btn-back">← Back to Editor</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- General Settings -->
+      <section id="general" class="settings-section active">
+        <h2>General Settings</h2>
+        <p class="section-description">Customize the appearance and behavior of the extension</p>
+
+        <div class="setting-group">
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="theme">Theme</label>
+              <p class="setting-description">Choose your preferred color theme</p>
+            </div>
+            <select id="theme" class="select-input">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="auto">Auto (System)</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="defaultTemplate">Default Template</label>
+              <p class="setting-description">Template to use when creating new diagrams</p>
+            </div>
+            <select id="defaultTemplate" class="select-input">
+              <option value="flowchart">Flowchart</option>
+              <option value="sequence">Sequence Diagram</option>
+              <option value="class">Class Diagram</option>
+              <option value="c4">C4 Diagram</option>
+              <option value="er">ER Diagram</option>
+              <option value="state">State Diagram</option>
+              <option value="gantt">Gantt Chart</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="autoRender">Auto-render on Web Pages</label>
+              <p class="setting-description">Automatically render Mermaid code blocks on websites</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="autoRender" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="showNotifications">Show Notifications</label>
+              <p class="setting-description">Display notifications for saves and exports</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="showNotifications" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Editor Settings -->
+      <section id="editor" class="settings-section">
+        <h2>Editor Settings</h2>
+        <p class="section-description">Customize the code editor experience</p>
+
+        <div class="setting-group">
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="fontSize">Font Size</label>
+              <p class="setting-description">Editor font size (10-24px)</p>
+            </div>
+            <div class="range-input-group">
+              <input type="range" id="fontSize" min="10" max="24" value="14" class="range-input">
+              <span id="fontSizeValue" class="range-value">14px</span>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="tabSize">Tab Size</label>
+              <p class="setting-description">Number of spaces for indentation</p>
+            </div>
+            <div class="range-input-group">
+              <input type="range" id="tabSize" min="2" max="8" step="2" value="2" class="range-input">
+              <span id="tabSizeValue" class="range-value">2 spaces</span>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="lineNumbers">Show Line Numbers</label>
+              <p class="setting-description">Display line numbers in the editor</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="lineNumbers" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="wordWrap">Word Wrap</label>
+              <p class="setting-description">Wrap long lines in the editor</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="wordWrap">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="autoSave">Auto-save</label>
+              <p class="setting-description">Automatically save changes</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="autoSave" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="autoSaveInterval">Auto-save Interval</label>
+              <p class="setting-description">Time between auto-saves (seconds)</p>
+            </div>
+            <div class="range-input-group">
+              <input type="range" id="autoSaveInterval" min="5" max="60" step="5" value="30" class="range-input">
+              <span id="autoSaveIntervalValue" class="range-value">30s</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Storage Settings -->
+      <section id="storage" class="settings-section">
+        <h2>Storage & Data</h2>
+        <p class="section-description">Manage your diagrams and data</p>
+
+        <div class="setting-group">
+          <div class="storage-info">
+            <h3>Storage Information</h3>
+            <div class="storage-stats">
+              <div class="stat-item">
+                <span class="stat-label">Total Diagrams:</span>
+                <span class="stat-value" id="totalDiagrams">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Storage Used:</span>
+                <span class="stat-value" id="storageUsed">0 KB</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label>Export All Data</label>
+              <p class="setting-description">Download all diagrams as JSON</p>
+            </div>
+            <button id="exportDataBtn" class="btn-secondary">Export Data</button>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label>Import Data</label>
+              <p class="setting-description">Import diagrams from JSON file</p>
+            </div>
+            <div class="file-input-group">
+              <input type="file" id="importDataInput" accept=".json" style="display: none;">
+              <button id="importDataBtn" class="btn-secondary">Import Data</button>
+            </div>
+          </div>
+
+          <div class="setting-item danger-zone">
+            <div class="setting-header">
+              <label>Clear All Data</label>
+              <p class="setting-description">Permanently delete all diagrams</p>
+            </div>
+            <button id="clearDataBtn" class="btn-danger">Clear All Data</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Export Settings -->
+      <section id="export" class="settings-section">
+        <h2>Export Settings</h2>
+        <p class="section-description">Configure default export options</p>
+
+        <div class="setting-group">
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="exportFormat">Default Export Format</label>
+              <p class="setting-description">Preferred format for quick export</p>
+            </div>
+            <select id="exportFormat" class="select-input">
+              <option value="png">PNG</option>
+              <option value="svg">SVG</option>
+              <option value="markdown">Markdown</option>
+              <option value="html">HTML</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="exportQuality">PNG Quality</label>
+              <p class="setting-description">Image quality for PNG exports (1-4x)</p>
+            </div>
+            <div class="range-input-group">
+              <input type="range" id="exportQuality" min="1" max="4" value="2" class="range-input">
+              <span id="exportQualityValue" class="range-value">2x</span>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-header">
+              <label for="includeBackground">Include Background</label>
+              <p class="setting-description">Add white background to PNG exports</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="includeBackground" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- About Section -->
+      <section id="about" class="settings-section">
+        <h2>About</h2>
+        <p class="section-description">Information about the extension</p>
+
+        <div class="about-content">
+          <div class="about-header">
+            <h3>Mermaid Diagram Editor & Viewer</h3>
+            <span class="version-badge">v1.0.0</span>
+          </div>
+
+          <p class="about-description">
+            A powerful Chrome/Edge extension for creating, editing, and viewing Mermaid diagrams with live preview support for flowcharts, sequence diagrams, class diagrams, C4 diagrams, and more.
+          </p>
+
+          <div class="feature-list">
+            <h4>Features</h4>
+            <ul>
+              <li>✨ Live preview editor</li>
+              <li>📊 Support for 9+ diagram types</li>
+              <li>🎨 Dark mode support</li>
+              <li>💾 Local storage</li>
+              <li>📤 Export to PNG, SVG, and more</li>
+              <li>🌐 Auto-render on web pages</li>
+            </ul>
+          </div>
+
+          <div class="links">
+            <h4>Links</h4>
+            <a href="https://mermaid.js.org/" target="_blank" class="link-item">
+              📚 Mermaid Documentation
+            </a>
+            <a href="https://github.com/" target="_blank" class="link-item">
+              🐙 GitHub Repository
+            </a>
+          </div>
+
+          <div class="credits">
+            <p>Built with ❤️ using Mermaid.js</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Save Button -->
+      <div class="save-bar">
+        <button id="saveSettingsBtn" class="btn-primary">Save Settings</button>
+        <button id="resetSettingsBtn" class="btn-secondary">Reset to Defaults</button>
+        <span id="saveStatus" class="save-status"></span>
+      </div>
+    </main>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

@@ -24,8 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Settings button
   document.getElementById('settingsBtn').addEventListener('click', () => {
-    // TODO: Open settings page
-    alert('Settings coming soon!');
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/settings/settings.html') });
   });
 });
 
