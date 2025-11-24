@@ -484,7 +484,6 @@ async function exportAsPDF() {
     const img = new Image();
 
     img.onload = () => {
-      // Create canvas to render SVG with higher resolution
       // Create high-resolution canvas for better PDF quality
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d', { alpha: false });
@@ -494,18 +493,6 @@ async function exportAsPDF() {
       canvas.width = svgWidth * scale;
       canvas.height = svgHeight * scale;
 
-      // Use scale factor for better quality
-      const scale = 2;
-      canvas.width = svgWidth * scale;
-      canvas.height = svgHeight * scale;
-
-      // Scale context for high-res rendering
-      ctx.scale(scale, scale);
-
-      // Fill white background
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, svgWidth, svgHeight);
-      ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
       // Enable high-quality image smoothing
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
@@ -513,6 +500,8 @@ async function exportAsPDF() {
       // Fill white background
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw scaled image
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
       // Convert to high-quality image data
@@ -1542,105 +1531,8 @@ async function alignNodes(alignment) {
 }
 
 // ==============================================
-// EDGE AND CANVAS UTILITIES
+// CANVAS UTILITIES
 // ==============================================
-
-/**
- * Update edges connected to a node when it moves
- * Recalculates edge paths to maintain connections
- *
- * @param {SVGElement} svg - The SVG container
- * @param {SVGElement} node - The node that was moved
- */
-function updateConnectedEdges(svg, node) {
-  try {
-    // Get node's bounding box in SVG coordinate space
-    const nodeBBox = node.getBBox();
-    const nodeTransform = node.getAttribute('transform') || '';
-    const translateMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
-
-    if (!translateMatch) return;
-
-    const nodeX = parseFloat(translateMatch[1]);
-    const nodeY = parseFloat(translateMatch[2]);
-
-    // Calculate node center point
-    const nodeCenterX = nodeX + nodeBBox.x + nodeBBox.width / 2;
-    const nodeCenterY = nodeY + nodeBBox.y + nodeBBox.height / 2;
-
-    // Get node ID from various possible attributes
-    const nodeId = node.id ||
-                   node.getAttribute('data-id') ||
-                   node.getAttribute('class')?.match(/node-(\w+)/)?.[1] ||
-                   Array.from(node.querySelectorAll('[id]'))[0]?.id;
-
-    if (!nodeId) return;
-
-    // Find all edges (paths) in the diagram
-    const edges = svg.querySelectorAll('path.flowchart-link, path.edge-pattern, path[class*="edge"], path[marker-end], g.edgePath path');
-
-    edges.forEach(edge => {
-      // Check if this edge is connected to the moved node
-      const edgeClasses = edge.getAttribute('class') || '';
-      const edgeId = edge.id || edge.parentElement?.id || '';
-
-      // Try to determine if this edge is connected to our node
-      if (edgeClasses.includes(nodeId) || edgeId.includes(nodeId)) {
-        // Get the current path data
-        const pathData = edge.getAttribute('d');
-        if (!pathData) return;
-
-        // Parse path commands
-        const commands = pathData.match(/[MLHVCSQTAZ][^MLHVCSQTAZ]*/gi);
-        if (!commands || commands.length < 2) return;
-
-        // Update first point (if this edge starts from our node)
-        let updatedPath = pathData;
-        const firstCommand = commands[0];
-        if (firstCommand.startsWith('M')) {
-          const coords = firstCommand.substring(1).trim().split(/[\s,]+/);
-          if (coords.length >= 2) {
-            const firstX = parseFloat(coords[0]);
-            const firstY = parseFloat(coords[1]);
-
-            // If the first point is close to the node, update it
-            const distance = Math.sqrt(Math.pow(firstX - nodeCenterX, 2) + Math.pow(firstY - nodeCenterY, 2));
-            if (distance < 200) { // Threshold for connection detection
-              updatedPath = updatedPath.replace(/^M[\s\d,.-]+/, `M${nodeCenterX},${nodeCenterY}`);
-            }
-          }
-        }
-
-        // Update last point (if this edge ends at our node)
-        const lastCommand = commands[commands.length - 1];
-        const lastCoordMatch = lastCommand.match(/([\d.-]+),([\d.-]+)/g);
-        if (lastCoordMatch && lastCoordMatch.length > 0) {
-          const lastCoords = lastCoordMatch[lastCoordMatch.length - 1].split(',');
-          const lastX = parseFloat(lastCoords[0]);
-          const lastY = parseFloat(lastCoords[1]);
-
-          // If the last point is close to the node, update it
-          const distance = Math.sqrt(Math.pow(lastX - nodeCenterX, 2) + Math.pow(lastY - nodeCenterY, 2));
-          if (distance < 200) {
-            // Find the last coordinate pair and replace it
-            const coordPattern = /([\d.-]+),([\d.-]+)(?![\d.-])/;
-            const matches = [...updatedPath.matchAll(new RegExp(coordPattern, 'g'))];
-            if (matches.length > 0) {
-              const lastMatch = matches[matches.length - 1];
-              updatedPath = updatedPath.substring(0, lastMatch.index) +
-                           `${nodeCenterX},${nodeCenterY}` +
-                           updatedPath.substring(lastMatch.index + lastMatch[0].length);
-            }
-          }
-        }
-
-        edge.setAttribute('d', updatedPath);
-      }
-    });
-  } catch (error) {
-    console.error('Error updating edges:', error);
-  }
-}
 
 /**
  * Expand SVG canvas when nodes are dragged outside bounds
