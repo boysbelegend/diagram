@@ -124,6 +124,7 @@ function setupEventListeners() {
 
   // Toolbar buttons
   document.getElementById('saveBtn').addEventListener('click', saveDiagram);
+  document.getElementById('saveAsBtn').addEventListener('click', saveAsDiagram);
   document.getElementById('exportPngBtn').addEventListener('click', exportAsPNG);
   document.getElementById('exportSvgBtn').addEventListener('click', exportAsSVG);
   document.getElementById('exportPdfBtn').addEventListener('click', exportAsPDF);
@@ -306,6 +307,57 @@ async function saveDiagram() {
   }
 }
 
+/**
+ * Save the current diagram as a new copy with a different name
+ * Always creates a new diagram with a new ID
+ *
+ * @async
+ */
+async function saveAsDiagram() {
+  try {
+    // Prompt user for new diagram title
+    const newTitle = prompt('Enter a name for the new diagram:',
+                           (diagramTitle.value || 'Untitled Diagram') + ' - Copy');
+
+    // User cancelled
+    if (newTitle === null) {
+      return;
+    }
+
+    // Create new diagram with new ID
+    const diagram = {
+      id: generateId(), // Always generate new ID for Save As
+      title: newTitle || 'Untitled Diagram',
+      code: codeEditor.value,
+      type: detectDiagramType(codeEditor.value),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Get existing diagrams
+    const result = await chrome.storage.local.get(['diagrams']);
+    let diagrams = result.diagrams || [];
+
+    // Add new diagram
+    diagrams.push(diagram);
+
+    // Save to storage
+    await chrome.storage.local.set({ diagrams });
+
+    // Update current diagram reference and UI
+    currentDiagram = diagram;
+    diagramTitle.value = diagram.title;
+    lastSaved.textContent = 'Saved just now';
+    status.textContent = 'Saved as new';
+
+    // Show success feedback
+    showNotification('Diagram saved as new copy!', 'success');
+  } catch (error) {
+    console.error('Save As error:', error);
+    showNotification('Failed to save diagram', 'error');
+  }
+}
+
 // ==============================================
 // EXPORT FUNCTIONS
 // ==============================================
@@ -422,15 +474,17 @@ async function exportAsPDF() {
 
     status.textContent = 'Generating PDF...';
 
-    // Get SVG dimensions from attributes or viewBox
-    const svgWidth = parseFloat(svgElement.getAttribute('width') || svgElement.viewBox.baseVal.width || 800);
-    const svgHeight = parseFloat(svgElement.getAttribute('height') || svgElement.viewBox.baseVal.height || 600);
+    // Get actual SVG dimensions using getBBox for accurate sizing
+    const bbox = svgElement.getBBox();
+    const svgWidth = bbox.width || parseFloat(svgElement.getAttribute('width')) || svgElement.viewBox.baseVal.width || 800;
+    const svgHeight = bbox.height || parseFloat(svgElement.getAttribute('height')) || svgElement.viewBox.baseVal.height || 600;
 
     // Convert SVG to image data URL for PDF embedding
     const svgData = new XMLSerializer().serializeToString(svgElement);
     const img = new Image();
 
     img.onload = () => {
+      // Create canvas to render SVG with higher resolution
       // Create high-resolution canvas for better PDF quality
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d', { alpha: false });
@@ -440,6 +494,18 @@ async function exportAsPDF() {
       canvas.width = svgWidth * scale;
       canvas.height = svgHeight * scale;
 
+      // Use scale factor for better quality
+      const scale = 2;
+      canvas.width = svgWidth * scale;
+      canvas.height = svgHeight * scale;
+
+      // Scale context for high-res rendering
+      ctx.scale(scale, scale);
+
+      // Fill white background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, svgWidth, svgHeight);
+      ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
       // Enable high-quality image smoothing
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
@@ -456,9 +522,9 @@ async function exportAsPDF() {
       const { jsPDF } = window.jspdf;
 
       // Calculate PDF dimensions (A4 or custom based on diagram size)
-      const pdfWidth = svgWidth > svgHeight ? 297 : 210; // A4 landscape or portrait
-      const pdfHeight = svgWidth > svgHeight ? 210 : 297;
       const orientation = svgWidth > svgHeight ? 'landscape' : 'portrait';
+      const pdfWidth = orientation === 'landscape' ? 297 : 210; // A4 in mm
+      const pdfHeight = orientation === 'landscape' ? 210 : 297;
 
       const pdf = new jsPDF({
         orientation: orientation,
@@ -466,17 +532,18 @@ async function exportAsPDF() {
         format: 'a4'
       });
 
-      // Calculate dimensions to fit in PDF
+      // Calculate dimensions to fit in PDF while maintaining aspect ratio
       const margin = 10;
       const maxWidth = pdfWidth - (2 * margin);
       const maxHeight = pdfHeight - (2 * margin);
 
+      const aspectRatio = svgWidth / svgHeight;
       let width = maxWidth;
-      let height = (svgHeight / svgWidth) * maxWidth;
+      let height = width / aspectRatio;
 
       if (height > maxHeight) {
         height = maxHeight;
-        width = (svgWidth / svgHeight) * maxHeight;
+        width = height * aspectRatio;
       }
 
       // Center the image
@@ -486,10 +553,11 @@ async function exportAsPDF() {
       // Add image to PDF
       pdf.addImage(imgData, 'PNG', x, y, width, height);
 
-      // Add title if exists
+      // Add title if exists (moved to bottom to avoid overlap)
       if (diagramTitle.value) {
-        pdf.setFontSize(16);
-        pdf.text(diagramTitle.value, pdfWidth / 2, 10, { align: 'center' });
+        pdf.setFontSize(12);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(diagramTitle.value, pdfWidth / 2, pdfHeight - 5, { align: 'center' });
       }
 
       // Save PDF
@@ -694,6 +762,13 @@ async function loadTemplate(type) {
 
 // Keyboard shortcuts
 function handleKeyboard(e) {
+  // Ctrl+Shift+S: Save As
+  if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+    e.preventDefault();
+    saveAsDiagram();
+    return;
+  }
+
   // Ctrl+S: Save
   if (e.ctrlKey && e.key === 's') {
     e.preventDefault();
@@ -930,6 +1005,29 @@ function toggleDragMode() {
  * @param {SVGElement} svg - The SVG element containing the diagram
  */
 function makeNodesDraggable(svg) {
+  // Limit SVG size to 4K (3840x2160) to prevent excessive memory usage
+  const MAX_WIDTH = 3840;
+  const MAX_HEIGHT = 2160;
+
+  // Get current SVG dimensions
+  const currentWidth = parseFloat(svg.getAttribute('width') || svg.viewBox.baseVal.width || 800);
+  const currentHeight = parseFloat(svg.getAttribute('height') || svg.viewBox.baseVal.height || 600);
+
+  // Apply size limits
+  if (currentWidth > MAX_WIDTH || currentHeight > MAX_HEIGHT) {
+    const scale = Math.min(MAX_WIDTH / currentWidth, MAX_HEIGHT / currentHeight);
+    const newWidth = currentWidth * scale;
+    const newHeight = currentHeight * scale;
+
+    svg.setAttribute('width', newWidth);
+    svg.setAttribute('height', newHeight);
+
+    // Update viewBox if it exists
+    if (svg.viewBox.baseVal.width > 0) {
+      svg.setAttribute('viewBox', `0 0 ${newWidth} ${newHeight}`);
+    }
+  }
+
   // CSS selectors for different node types in Mermaid diagrams
   const nodeSelectors = [
     'g.node',              // Standard flowchart nodes
@@ -1017,6 +1115,12 @@ function makeNodesDraggable(svg) {
     const ctm = svg.getScreenCTM();
     const point = svgPoint.matrixTransform(ctm.inverse());
 
+    // Get old position for calculating delta
+    const oldTransform = dragState.currentNode.getAttribute('transform') || '';
+    const oldTranslateMatch = oldTransform.match(/translate\(([^,]+),([^)]+)\)/);
+    const oldX = oldTranslateMatch ? parseFloat(oldTranslateMatch[1]) : 0;
+    const oldY = oldTranslateMatch ? parseFloat(oldTranslateMatch[2]) : 0;
+
     // Calculate new position relative to original click point
     let newX = point.x - dragState.offset.x;
     let newY = point.y - dragState.offset.y;
@@ -1027,6 +1131,10 @@ function makeNodesDraggable(svg) {
       newY = Math.round(newY / dragState.gridSize) * dragState.gridSize;
     }
 
+    // Calculate delta for edge updates
+    const deltaX = newX - oldX;
+    const deltaY = newY - oldY;
+
     // Get existing transform and preserve non-translate transforms
     const transform = dragState.currentNode.getAttribute('transform') || '';
     const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
@@ -1035,11 +1143,8 @@ function makeNodesDraggable(svg) {
     const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
     dragState.currentNode.setAttribute('transform', newTransform);
 
-    // Update connected edges
-    updateConnectedEdges(svg, dragState.currentNode);
-
-    // Auto-expand canvas if needed
-    expandCanvasIfNeeded(svg, dragState.currentNode);
+    // Update connected edges (arrows/paths)
+    updateConnectedEdges(svg, dragState.currentNode, deltaX, deltaY);
   };
 
   // Mouse up
@@ -1065,6 +1170,145 @@ function makeNodesDraggable(svg) {
     mouseMoveHandler,
     mouseUpHandler
   };
+}
+
+/**
+ * Update connected edges (arrows/paths) when a node is moved
+ * Finds all edges connected to the moved node and adjusts their positions
+ *
+ * @param {SVGElement} svg - The SVG element containing the diagram
+ * @param {SVGElement} node - The node that was moved
+ * @param {number} deltaX - The change in X position
+ * @param {number} deltaY - The change in Y position
+ */
+function updateConnectedEdges(svg, node, deltaX, deltaY) {
+  // Only update if there's actual movement
+  if (Math.abs(deltaX) < 0.1 && Math.abs(deltaY) < 0.1) return;
+
+  // Get all edges (paths with markers or specific edge classes)
+  const edges = svg.querySelectorAll('path.edge, path[marker-end], g.edgePath, g.edge, g[class*="edge"]');
+
+  edges.forEach(edge => {
+    // Get the path element (might be nested in a group)
+    const pathElement = edge.tagName === 'path' ? edge : edge.querySelector('path');
+    if (!pathElement) return;
+
+    // Check if this edge is connected to the moved node
+    // by checking if the path is near the node's position
+    const nodeBBox = node.getBBox();
+    const nodeTransform = node.getAttribute('transform') || '';
+    const nodeTranslateMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
+    const nodeX = nodeTranslateMatch ? parseFloat(nodeTranslateMatch[1]) : 0;
+    const nodeY = nodeTranslateMatch ? parseFloat(nodeTranslateMatch[2]) : 0;
+
+    // Get the path's current 'd' attribute
+    const d = pathElement.getAttribute('d');
+    if (!d) return;
+
+    // Parse and update path coordinates
+    // This handles both absolute and relative path commands
+    const updatedPath = updatePathCoordinates(d, nodeX, nodeY, nodeBBox, deltaX, deltaY);
+
+    if (updatedPath !== d) {
+      pathElement.setAttribute('d', updatedPath);
+    }
+
+    // Also update edge labels if they exist
+    const edgeLabel = edge.querySelector('text, foreignObject');
+    if (edgeLabel) {
+      const labelTransform = edgeLabel.getAttribute('transform') || '';
+      const labelMatch = labelTransform.match(/translate\(([^,]+),([^)]+)\)/);
+      if (labelMatch) {
+        const labelX = parseFloat(labelMatch[1]);
+        const labelY = parseFloat(labelMatch[2]);
+
+        // Check if label is near the moved node
+        const distX = Math.abs(labelX - nodeX);
+        const distY = Math.abs(labelY - nodeY);
+
+        if (distX < 200 && distY < 200) {
+          const newLabelTransform = labelTransform.replace(
+            /translate\([^)]+\)/,
+            `translate(${labelX + deltaX},${labelY + deltaY})`
+          );
+          edgeLabel.setAttribute('transform', newLabelTransform);
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Update path coordinates based on node movement
+ * Adjusts path points that are near the moved node
+ *
+ * @param {string} pathData - The SVG path 'd' attribute
+ * @param {number} nodeX - The node's X position
+ * @param {number} nodeY - The node's Y position
+ * @param {DOMRect} nodeBBox - The node's bounding box
+ * @param {number} deltaX - The change in X position
+ * @param {number} deltaY - The change in Y position
+ * @returns {string} Updated path data
+ */
+function updatePathCoordinates(pathData, nodeX, nodeY, nodeBBox, deltaX, deltaY) {
+  // Regular expression to match path commands and their coordinates
+  const pathRegex = /([MLCQSTAZmlcqstaz])([^MLCQSTAZmlcqstaz]*)/g;
+  let updatedPath = '';
+  let match;
+
+  // Node center position
+  const nodeCenterX = nodeX + nodeBBox.width / 2;
+  const nodeCenterY = nodeY + nodeBBox.height / 2;
+  const connectionThreshold = Math.max(nodeBBox.width, nodeBBox.height) + 50;
+
+  while ((match = pathRegex.exec(pathData)) !== null) {
+    const command = match[1];
+    const coords = match[2].trim();
+
+    if (!coords) {
+      updatedPath += command;
+      continue;
+    }
+
+    // Split coordinates
+    const numbers = coords.split(/[\s,]+/).filter(s => s.length > 0).map(parseFloat);
+
+    if (numbers.length === 0) {
+      updatedPath += command;
+      continue;
+    }
+
+    updatedPath += command;
+
+    // Process coordinate pairs
+    for (let i = 0; i < numbers.length; i += 2) {
+      if (i + 1 >= numbers.length) {
+        updatedPath += numbers[i];
+        break;
+      }
+
+      let x = numbers[i];
+      let y = numbers[i + 1];
+
+      // Check if this coordinate is near the moved node
+      // For absolute commands (uppercase)
+      if (command === command.toUpperCase() && command !== 'Z') {
+        const dist = Math.sqrt(
+          Math.pow(x - nodeCenterX + deltaX, 2) +
+          Math.pow(y - nodeCenterY + deltaY, 2)
+        );
+
+        if (dist < connectionThreshold) {
+          x += deltaX;
+          y += deltaY;
+        }
+      }
+
+      updatedPath += (i > 0 ? ',' : '') + x + ',' + y;
+    }
+  }
+
+  return updatedPath;
 }
 
 // Remove drag handlers
