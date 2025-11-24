@@ -290,8 +290,17 @@ async function saveDiagram() {
     lastSaved.textContent = 'Saved just now';
     status.textContent = 'Saved';
 
-    // Show success feedback
-    showNotification('Diagram saved successfully!', 'success');
+    // Calculate storage size
+    const storageResult = await chrome.storage.local.get(null);
+    const storageSize = JSON.stringify(storageResult).length;
+    const storageMB = (storageSize / 1024 / 1024).toFixed(2);
+
+    // Show success feedback with storage location info
+    showNotification(
+      `Diagram saved to Chrome Local Storage (${storageMB}MB used)`,
+      'success',
+      5000
+    );
   } catch (error) {
     console.error('Save error:', error);
     showNotification('Failed to save diagram', 'error');
@@ -367,29 +376,55 @@ async function exportAsPNG() {
       return;
     }
 
-    // Create canvas
+    status.textContent = 'Generating high-quality PNG...';
+
+    // Get SVG dimensions
+    const bbox = svgElement.getBBox();
+    const svgWidth = bbox.width || parseFloat(svgElement.getAttribute('width')) || 800;
+    const svgHeight = bbox.height || parseFloat(svgElement.getAttribute('height')) || 600;
+
+    // Use high scale factor for better quality (3x for retina displays)
+    const scale = 3;
+
+    // Create high-resolution canvas
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    canvas.width = svgWidth * scale;
+    canvas.height = svgHeight * scale;
+
+    // Enable image smoothing for better quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     const svgData = new XMLSerializer().serializeToString(svgElement);
     const img = new Image();
 
     img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
+      // Fill white background
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
 
+      // Draw scaled image
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Export with maximum quality
       canvas.toBlob((blob) => {
         downloadBlob(blob, `${diagramTitle.value || 'diagram'}.png`);
-        showNotification('Exported as PNG', 'success');
-      });
+        status.textContent = 'Ready';
+        showNotification('Exported as high-quality PNG (3x resolution)', 'success');
+      }, 'image/png', 1.0);
+    };
+
+    img.onerror = () => {
+      status.textContent = 'Ready';
+      showNotification('Failed to export PNG', 'error');
     };
 
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   } catch (error) {
     console.error('Export PNG error:', error);
+    status.textContent = 'Ready';
     showNotification('Failed to export PNG', 'error');
   }
 }
@@ -450,8 +485,14 @@ async function exportAsPDF() {
 
     img.onload = () => {
       // Create canvas to render SVG with higher resolution
+      // Create high-resolution canvas for better PDF quality
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      // Use 2x scale for better PDF quality (balance between quality and file size)
+      const scale = 2;
+      canvas.width = svgWidth * scale;
+      canvas.height = svgHeight * scale;
 
       // Use scale factor for better quality
       const scale = 2;
@@ -465,9 +506,17 @@ async function exportAsPDF() {
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, svgWidth, svgHeight);
       ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+      // Enable high-quality image smoothing
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
-      // Convert to image data
-      const imgData = canvas.toDataURL('image/png');
+      // Fill white background
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Convert to high-quality image data
+      const imgData = canvas.toDataURL('image/png', 1.0);
 
       // Create PDF
       const { jsPDF } = window.jspdf;
@@ -515,7 +564,7 @@ async function exportAsPDF() {
       pdf.save(`${diagramTitle.value || 'diagram'}.pdf`);
 
       status.textContent = 'Ready';
-      showNotification('Exported as PDF', 'success');
+      showNotification('Exported as high-quality PDF (2x resolution)', 'success');
     };
 
     img.onerror = () => {
@@ -875,7 +924,7 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', duration = 3000) {
   // Simple notification - could be enhanced with a toast library
   const oldStatus = status.textContent;
   status.textContent = message;
@@ -886,7 +935,7 @@ function showNotification(message, type = 'info') {
   setTimeout(() => {
     status.textContent = oldStatus;
     status.style.color = 'var(--text-secondary)';
-  }, 3000);
+  }, duration);
 }
 
 // Load theme preference
@@ -1490,4 +1539,194 @@ async function alignNodes(alignment) {
   await saveLayout(svg, dragState.diagramHash);
 
   showNotification(`Nodes aligned ${alignment}`, 'success');
+}
+
+// ==============================================
+// EDGE AND CANVAS UTILITIES
+// ==============================================
+
+/**
+ * Update edges connected to a node when it moves
+ * Recalculates edge paths to maintain connections
+ *
+ * @param {SVGElement} svg - The SVG container
+ * @param {SVGElement} node - The node that was moved
+ */
+function updateConnectedEdges(svg, node) {
+  try {
+    // Get node's bounding box in SVG coordinate space
+    const nodeBBox = node.getBBox();
+    const nodeTransform = node.getAttribute('transform') || '';
+    const translateMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
+
+    if (!translateMatch) return;
+
+    const nodeX = parseFloat(translateMatch[1]);
+    const nodeY = parseFloat(translateMatch[2]);
+
+    // Calculate node center point
+    const nodeCenterX = nodeX + nodeBBox.x + nodeBBox.width / 2;
+    const nodeCenterY = nodeY + nodeBBox.y + nodeBBox.height / 2;
+
+    // Get node ID from various possible attributes
+    const nodeId = node.id ||
+                   node.getAttribute('data-id') ||
+                   node.getAttribute('class')?.match(/node-(\w+)/)?.[1] ||
+                   Array.from(node.querySelectorAll('[id]'))[0]?.id;
+
+    if (!nodeId) return;
+
+    // Find all edges (paths) in the diagram
+    const edges = svg.querySelectorAll('path.flowchart-link, path.edge-pattern, path[class*="edge"], path[marker-end], g.edgePath path');
+
+    edges.forEach(edge => {
+      // Check if this edge is connected to the moved node
+      const edgeClasses = edge.getAttribute('class') || '';
+      const edgeId = edge.id || edge.parentElement?.id || '';
+
+      // Try to determine if this edge is connected to our node
+      if (edgeClasses.includes(nodeId) || edgeId.includes(nodeId)) {
+        // Get the current path data
+        const pathData = edge.getAttribute('d');
+        if (!pathData) return;
+
+        // Parse path commands
+        const commands = pathData.match(/[MLHVCSQTAZ][^MLHVCSQTAZ]*/gi);
+        if (!commands || commands.length < 2) return;
+
+        // Update first point (if this edge starts from our node)
+        let updatedPath = pathData;
+        const firstCommand = commands[0];
+        if (firstCommand.startsWith('M')) {
+          const coords = firstCommand.substring(1).trim().split(/[\s,]+/);
+          if (coords.length >= 2) {
+            const firstX = parseFloat(coords[0]);
+            const firstY = parseFloat(coords[1]);
+
+            // If the first point is close to the node, update it
+            const distance = Math.sqrt(Math.pow(firstX - nodeCenterX, 2) + Math.pow(firstY - nodeCenterY, 2));
+            if (distance < 200) { // Threshold for connection detection
+              updatedPath = updatedPath.replace(/^M[\s\d,.-]+/, `M${nodeCenterX},${nodeCenterY}`);
+            }
+          }
+        }
+
+        // Update last point (if this edge ends at our node)
+        const lastCommand = commands[commands.length - 1];
+        const lastCoordMatch = lastCommand.match(/([\d.-]+),([\d.-]+)/g);
+        if (lastCoordMatch && lastCoordMatch.length > 0) {
+          const lastCoords = lastCoordMatch[lastCoordMatch.length - 1].split(',');
+          const lastX = parseFloat(lastCoords[0]);
+          const lastY = parseFloat(lastCoords[1]);
+
+          // If the last point is close to the node, update it
+          const distance = Math.sqrt(Math.pow(lastX - nodeCenterX, 2) + Math.pow(lastY - nodeCenterY, 2));
+          if (distance < 200) {
+            // Find the last coordinate pair and replace it
+            const coordPattern = /([\d.-]+),([\d.-]+)(?![\d.-])/;
+            const matches = [...updatedPath.matchAll(new RegExp(coordPattern, 'g'))];
+            if (matches.length > 0) {
+              const lastMatch = matches[matches.length - 1];
+              updatedPath = updatedPath.substring(0, lastMatch.index) +
+                           `${nodeCenterX},${nodeCenterY}` +
+                           updatedPath.substring(lastMatch.index + lastMatch[0].length);
+            }
+          }
+        }
+
+        edge.setAttribute('d', updatedPath);
+      }
+    });
+  } catch (error) {
+    console.error('Error updating edges:', error);
+  }
+}
+
+/**
+ * Expand SVG canvas when nodes are dragged outside bounds
+ * Dynamically adjusts viewBox to accommodate all nodes
+ *
+ * @param {SVGElement} svg - The SVG container
+ * @param {SVGElement} node - The node being dragged
+ */
+function expandCanvasIfNeeded(svg, node) {
+  try {
+    // Get current viewBox or create default
+    let viewBox = svg.getAttribute('viewBox');
+    let vbX = 0, vbY = 0, vbWidth = 800, vbHeight = 600;
+
+    if (viewBox) {
+      const parts = viewBox.split(/[\s,]+/);
+      vbX = parseFloat(parts[0]) || 0;
+      vbY = parseFloat(parts[1]) || 0;
+      vbWidth = parseFloat(parts[2]) || 800;
+      vbHeight = parseFloat(parts[3]) || 600;
+    } else {
+      // Initialize viewBox from SVG dimensions
+      const svgWidth = parseFloat(svg.getAttribute('width')) || 800;
+      const svgHeight = parseFloat(svg.getAttribute('height')) || 600;
+      vbWidth = svgWidth;
+      vbHeight = svgHeight;
+    }
+
+    // Get node's bounding box
+    const nodeBBox = node.getBBox();
+    const nodeTransform = node.getAttribute('transform') || '';
+    const translateMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
+
+    if (!translateMatch) return;
+
+    const nodeX = parseFloat(translateMatch[1]);
+    const nodeY = parseFloat(translateMatch[2]);
+
+    // Calculate node bounds in SVG space
+    const nodeLeft = nodeX + nodeBBox.x;
+    const nodeRight = nodeX + nodeBBox.x + nodeBBox.width;
+    const nodeTop = nodeY + nodeBBox.y;
+    const nodeBottom = nodeY + nodeBBox.y + nodeBBox.height;
+
+    // Add padding
+    const padding = 50;
+
+    // Check if expansion is needed
+    let needsExpansion = false;
+    let newVbX = vbX, newVbY = vbY, newVbWidth = vbWidth, newVbHeight = vbHeight;
+
+    // Expand left
+    if (nodeLeft < vbX + padding) {
+      newVbX = nodeLeft - padding;
+      newVbWidth = vbWidth + (vbX - newVbX);
+      needsExpansion = true;
+    }
+
+    // Expand right
+    if (nodeRight > vbX + vbWidth - padding) {
+      newVbWidth = nodeRight - newVbX + padding;
+      needsExpansion = true;
+    }
+
+    // Expand top
+    if (nodeTop < vbY + padding) {
+      newVbY = nodeTop - padding;
+      newVbHeight = vbHeight + (vbY - newVbY);
+      needsExpansion = true;
+    }
+
+    // Expand bottom
+    if (nodeBottom > vbY + vbHeight - padding) {
+      newVbHeight = nodeBottom - newVbY + padding;
+      needsExpansion = true;
+    }
+
+    // Apply new viewBox if needed
+    if (needsExpansion) {
+      svg.setAttribute('viewBox', `${newVbX} ${newVbY} ${newVbWidth} ${newVbHeight}`);
+
+      // Also update SVG dimensions to maintain aspect ratio
+      svg.setAttribute('width', newVbWidth);
+      svg.setAttribute('height', newVbHeight);
+    }
+  } catch (error) {
+    console.error('Error expanding canvas:', error);
+  }
 }
