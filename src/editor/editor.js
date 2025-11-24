@@ -1091,7 +1091,8 @@ function makeNodesDraggable(svg) {
 
   /**
    * Handle mouse move event - update node position while dragging
-   * Applies grid snapping if enabled and updates connected edges
+   * Applies grid snapping if enabled
+   * Edges will be reconnected after drag completes for accuracy
    */
   const mouseMoveHandler = (e) => {
     if (!dragState.dragging || !dragState.currentNode) return;
@@ -1104,12 +1105,6 @@ function makeNodesDraggable(svg) {
     const ctm = svg.getScreenCTM();
     const point = svgPoint.matrixTransform(ctm.inverse());
 
-    // Get old position for calculating delta
-    const oldTransform = dragState.currentNode.getAttribute('transform') || '';
-    const oldTranslateMatch = oldTransform.match(/translate\(([^,]+),([^)]+)\)/);
-    const oldX = oldTranslateMatch ? parseFloat(oldTranslateMatch[1]) : 0;
-    const oldY = oldTranslateMatch ? parseFloat(oldTranslateMatch[2]) : 0;
-
     // Calculate new position relative to original click point
     let newX = point.x - dragState.offset.x;
     let newY = point.y - dragState.offset.y;
@@ -1120,10 +1115,6 @@ function makeNodesDraggable(svg) {
       newY = Math.round(newY / dragState.gridSize) * dragState.gridSize;
     }
 
-    // Calculate delta for edge updates
-    const deltaX = newX - oldX;
-    const deltaY = newY - oldY;
-
     // Get existing transform and preserve non-translate transforms
     const transform = dragState.currentNode.getAttribute('transform') || '';
     const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
@@ -1132,15 +1123,18 @@ function makeNodesDraggable(svg) {
     const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
     dragState.currentNode.setAttribute('transform', newTransform);
 
-    // Update connected edges (arrows/paths)
-    updateConnectedEdges(svg, dragState.currentNode, deltaX, deltaY);
+    // Expand canvas if node is dragged near edges
+    expandCanvasIfNeeded(svg, dragState.currentNode);
   };
 
-  // Mouse up
+  // Mouse up - reconnect edges after drag completes
   const mouseUpHandler = async (e) => {
     if (dragState.dragging && dragState.currentNode) {
       dragState.currentNode.style.cursor = 'grab';
       dragState.currentNode.classList.remove('dragging');
+
+      // Reconnect edges to the moved node after drag completes
+      reconnectNodeEdges(svg, dragState.currentNode);
 
       // Save layout after drag
       await saveLayout(svg, dragState.diagramHash);
@@ -1162,142 +1156,98 @@ function makeNodesDraggable(svg) {
 }
 
 /**
- * Update connected edges (arrows/paths) when a node is moved
- * Finds all edges connected to the moved node and adjusts their positions
+ * Reconnect edges to a node after it has been moved
+ * This function finds all edges connected to the node and updates their
+ * start/end points to match the node's new position
  *
  * @param {SVGElement} svg - The SVG element containing the diagram
  * @param {SVGElement} node - The node that was moved
- * @param {number} deltaX - The change in X position
- * @param {number} deltaY - The change in Y position
  */
-function updateConnectedEdges(svg, node, deltaX, deltaY) {
-  // Only update if there's actual movement
-  if (Math.abs(deltaX) < 0.1 && Math.abs(deltaY) < 0.1) return;
-
-  // Get all edges (paths with markers or specific edge classes)
-  const edges = svg.querySelectorAll('path.edge, path[marker-end], g.edgePath, g.edge, g[class*="edge"]');
-
-  edges.forEach(edge => {
-    // Get the path element (might be nested in a group)
-    const pathElement = edge.tagName === 'path' ? edge : edge.querySelector('path');
-    if (!pathElement) return;
-
-    // Check if this edge is connected to the moved node
-    // by checking if the path is near the node's position
+function reconnectNodeEdges(svg, node) {
+  try {
+    // Get node's bounding box and position
     const nodeBBox = node.getBBox();
     const nodeTransform = node.getAttribute('transform') || '';
     const nodeTranslateMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
-    const nodeX = nodeTranslateMatch ? parseFloat(nodeTranslateMatch[1]) : 0;
-    const nodeY = nodeTranslateMatch ? parseFloat(nodeTranslateMatch[2]) : 0;
 
-    // Get the path's current 'd' attribute
-    const d = pathElement.getAttribute('d');
-    if (!d) return;
+    if (!nodeTranslateMatch) return;
 
-    // Parse and update path coordinates
-    // This handles both absolute and relative path commands
-    const updatedPath = updatePathCoordinates(d, nodeX, nodeY, nodeBBox, deltaX, deltaY);
+    const nodeX = parseFloat(nodeTranslateMatch[1]);
+    const nodeY = parseFloat(nodeTranslateMatch[2]);
 
-    if (updatedPath !== d) {
-      pathElement.setAttribute('d', updatedPath);
-    }
+    // Calculate node center point for edge connections
+    const nodeCenterX = nodeX + nodeBBox.x + nodeBBox.width / 2;
+    const nodeCenterY = nodeY + nodeBBox.y + nodeBBox.height / 2;
 
-    // Also update edge labels if they exist
-    const edgeLabel = edge.querySelector('text, foreignObject');
-    if (edgeLabel) {
-      const labelTransform = edgeLabel.getAttribute('transform') || '';
-      const labelMatch = labelTransform.match(/translate\(([^,]+),([^)]+)\)/);
-      if (labelMatch) {
-        const labelX = parseFloat(labelMatch[1]);
-        const labelY = parseFloat(labelMatch[2]);
+    // Find all edge paths in the diagram
+    const edges = svg.querySelectorAll('path.flowchart-link, path.edge-pattern, path[class*="edge"], path[marker-end], g.edgePath path, g.edge path');
 
-        // Check if label is near the moved node
-        const distX = Math.abs(labelX - nodeX);
-        const distY = Math.abs(labelY - nodeY);
+    edges.forEach(pathElement => {
+      const d = pathElement.getAttribute('d');
+      if (!d) return;
 
-        if (distX < 200 && distY < 200) {
-          const newLabelTransform = labelTransform.replace(
-            /translate\([^)]+\)/,
-            `translate(${labelX + deltaX},${labelY + deltaY})`
-          );
-          edgeLabel.setAttribute('transform', newLabelTransform);
-        }
-      }
-    }
-  });
-}
+      // Parse the path to find start and end points
+      const pathCommands = d.match(/[MLHVCSQTAZ][^MLHVCSQTAZ]*/gi);
+      if (!pathCommands || pathCommands.length < 2) return;
 
-/**
- * Update path coordinates based on node movement
- * Adjusts path points that are near the moved node
- *
- * @param {string} pathData - The SVG path 'd' attribute
- * @param {number} nodeX - The node's X position
- * @param {number} nodeY - The node's Y position
- * @param {DOMRect} nodeBBox - The node's bounding box
- * @param {number} deltaX - The change in X position
- * @param {number} deltaY - The change in Y position
- * @returns {string} Updated path data
- */
-function updatePathCoordinates(pathData, nodeX, nodeY, nodeBBox, deltaX, deltaY) {
-  // Regular expression to match path commands and their coordinates
-  const pathRegex = /([MLCQSTAZmlcqstaz])([^MLCQSTAZmlcqstaz]*)/g;
-  let updatedPath = '';
-  let match;
+      let newPath = d;
+      let edgeModified = false;
 
-  // Node center position
-  const nodeCenterX = nodeX + nodeBBox.width / 2;
-  const nodeCenterY = nodeY + nodeBBox.height / 2;
-  const connectionThreshold = Math.max(nodeBBox.width, nodeBBox.height) + 50;
+      // Check and update start point (M command)
+      const startMatch = pathCommands[0].match(/M\s*([-\d.]+)[,\s]+([-\d.]+)/i);
+      if (startMatch) {
+        const startX = parseFloat(startMatch[1]);
+        const startY = parseFloat(startMatch[2]);
 
-  while ((match = pathRegex.exec(pathData)) !== null) {
-    const command = match[1];
-    const coords = match[2].trim();
-
-    if (!coords) {
-      updatedPath += command;
-      continue;
-    }
-
-    // Split coordinates
-    const numbers = coords.split(/[\s,]+/).filter(s => s.length > 0).map(parseFloat);
-
-    if (numbers.length === 0) {
-      updatedPath += command;
-      continue;
-    }
-
-    updatedPath += command;
-
-    // Process coordinate pairs
-    for (let i = 0; i < numbers.length; i += 2) {
-      if (i + 1 >= numbers.length) {
-        updatedPath += numbers[i];
-        break;
-      }
-
-      let x = numbers[i];
-      let y = numbers[i + 1];
-
-      // Check if this coordinate is near the moved node
-      // For absolute commands (uppercase)
-      if (command === command.toUpperCase() && command !== 'Z') {
-        const dist = Math.sqrt(
-          Math.pow(x - nodeCenterX + deltaX, 2) +
-          Math.pow(y - nodeCenterY + deltaY, 2)
+        // Check if start point is near the moved node's old or new position
+        const distToNode = Math.sqrt(
+          Math.pow(startX - nodeCenterX, 2) +
+          Math.pow(startY - nodeCenterY, 2)
         );
 
-        if (dist < connectionThreshold) {
-          x += deltaX;
-          y += deltaY;
+        // If within connection range (200px), reconnect to node center
+        if (distToNode < 200) {
+          newPath = newPath.replace(/M\s*[-\d.]+[,\s]+[-\d.]+/i, `M${nodeCenterX},${nodeCenterY}`);
+          edgeModified = true;
         }
       }
 
-      updatedPath += (i > 0 ? ',' : '') + x + ',' + y;
-    }
-  }
+      // Check and update end point (last coordinate in path)
+      // Extract all coordinate pairs from the path
+      const coordMatches = [...d.matchAll(/([-\d.]+)[,\s]+([-\d.]+)/g)];
+      if (coordMatches.length > 0) {
+        const lastCoord = coordMatches[coordMatches.length - 1];
+        const endX = parseFloat(lastCoord[1]);
+        const endY = parseFloat(lastCoord[2]);
 
-  return updatedPath;
+        // Check if end point is near the moved node
+        const distToNode = Math.sqrt(
+          Math.pow(endX - nodeCenterX, 2) +
+          Math.pow(endY - nodeCenterY, 2)
+        );
+
+        // If within connection range, reconnect to node center
+        if (distToNode < 200) {
+          // Replace the last coordinate pair
+          const lastCoordStr = `${lastCoord[1]},${lastCoord[2]}`;
+          const lastIndex = newPath.lastIndexOf(lastCoordStr);
+          if (lastIndex !== -1) {
+            newPath = newPath.substring(0, lastIndex) +
+                     `${nodeCenterX},${nodeCenterY}` +
+                     newPath.substring(lastIndex + lastCoordStr.length);
+            edgeModified = true;
+          }
+        }
+      }
+
+      // Apply the updated path if it was modified
+      if (edgeModified) {
+        pathElement.setAttribute('d', newPath);
+      }
+    });
+  } catch (error) {
+    console.error('Error reconnecting node edges:', error);
+  }
 }
 
 // Remove drag handlers
@@ -1577,8 +1527,8 @@ function expandCanvasIfNeeded(svg, node) {
     const nodeTop = nodeY + nodeBBox.y;
     const nodeBottom = nodeY + nodeBBox.y + nodeBBox.height;
 
-    // Add padding
-    const padding = 50;
+    // Add generous padding to prevent clipping (100px buffer)
+    const padding = 100;
 
     // Check if expansion is needed
     let needsExpansion = false;
