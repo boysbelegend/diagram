@@ -1197,7 +1197,9 @@ function findConnectedEdges(svg, node) {
       'g.edge path'
     );
 
-    const CONNECTION_RANGE = 250;
+    // Very tight connection range - edges connect exactly at node boundaries
+    // Mermaid generates SVG where edges touch node edges precisely
+    const CONNECTION_RANGE = 30; // Reduced from 250px to 30px for accuracy
 
     edgePaths.forEach(pathElement => {
       const d = pathElement.getAttribute('d');
