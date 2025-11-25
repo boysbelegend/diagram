@@ -985,62 +985,45 @@ function toggleDragMode() {
 }
 
 /**
- * Make all SVG nodes in the diagram draggable
- * Attaches mouse event handlers to enable dragging
- *
- * @param {SVGElement} svg - The SVG element containing the diagram
- */
-
-/**
- * Enable drag-and-drop for ALL SVG elements (nodes, edges, labels, etc.)
- * Simple implementation - user has full manual control
- * No automatic edge reconnection - just move things around freely!
+ * Enable drag-and-drop for nodes only
+ * Edges automatically follow connected nodes
+ * Movement restricted to visible viewport
  *
  * @param {SVGElement} svg - The SVG element containing the diagram
  */
 function makeNodesDraggable(svg) {
   if (!svg) return;
 
-  // === PREVENT INFINITE EXPANSION ===
-  const MAX_WIDTH = 3840;   // 4K width
-  const MAX_HEIGHT = 2160;  // 4K height
+  // === GET VIEWPORT BOUNDARIES ===
+  // Movement will be restricted to current viewBox
+  let viewBox = svg.getAttribute('viewBox');
+  let vbX = 0, vbY = 0, vbWidth = 800, vbHeight = 600;
 
-  const currentWidth = parseFloat(svg.getAttribute('width') || svg.viewBox.baseVal.width || 800);
-  const currentHeight = parseFloat(svg.getAttribute('height') || svg.viewBox.baseVal.height || 600);
-
-  // Cap size to prevent memory issues
-  if (currentWidth > MAX_WIDTH || currentHeight > MAX_HEIGHT) {
-    const scale = Math.min(MAX_WIDTH / currentWidth, MAX_HEIGHT / currentHeight);
-    const newWidth = currentWidth * scale;
-    const newHeight = currentHeight * scale;
-
-    svg.setAttribute('width', newWidth);
-    svg.setAttribute('height', newHeight);
-
-    if (svg.viewBox.baseVal.width > 0) {
-      svg.setAttribute('viewBox', `0 0 ${newWidth} ${newHeight}`);
-    }
-
-    console.log(`SVG size capped to ${newWidth}x${newHeight}`);
+  if (viewBox) {
+    const parts = viewBox.split(/[\s,]+/);
+    vbX = parseFloat(parts[0]) || 0;
+    vbY = parseFloat(parts[1]) || 0;
+    vbWidth = parseFloat(parts[2]) || 800;
+    vbHeight = parseFloat(parts[3]) || 600;
+  } else {
+    const currentWidth = parseFloat(svg.getAttribute('width') || svg.viewBox.baseVal.width || 800);
+    const currentHeight = parseFloat(svg.getAttribute('height') || svg.viewBox.baseVal.height || 600);
+    vbWidth = currentWidth;
+    vbHeight = currentHeight;
+    svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbWidth} ${vbHeight}`);
   }
 
-  // === SELECT ALL DRAGGABLE ELEMENTS ===
-  // Everything is draggable: nodes, edges, labels, etc!
+  console.log(`Viewport boundaries: ${vbX}, ${vbY}, ${vbWidth}, ${vbHeight}`);
+
+  // === SELECT ONLY NODES (NOT EDGES) ===
+  // Only nodes are draggable - edges will follow automatically
   const draggableElements = svg.querySelectorAll(
     'g.node, ' +              // Flowchart nodes
     'g.nodes > g, ' +         // Node groups
-    'g[class*="node"], ' +    // Any node-like group
-    'path, ' +                // Edges (all paths) - YES, edges are draggable too!
-    'text, ' +                // Text labels
-    'foreignObject, ' +       // HTML labels
-    'g.edgeLabel, ' +         // Edge labels
-    'rect, ' +                // Rectangles
-    'circle, ' +              // Circles
-    'ellipse, ' +             // Ellipses
-    'polygon'                 // Polygons
+    'g[class*="node"]'        // Any node-like group
   );
 
-  console.log(`Made ${draggableElements.length} elements draggable`);
+  console.log(`Made ${draggableElements.length} nodes draggable`);
 
   // === ATTACH DRAG HANDLERS TO EACH ELEMENT ===
   draggableElements.forEach(element => {
@@ -1098,11 +1081,13 @@ function makeNodesDraggable(svg) {
   });
 
   /**
-   * Mouse Move - Update element position
+   * Mouse Move - Update node position and connected edges
    */
   const mouseMoveHandler = (e) => {
     if (!dragState.dragging || !dragState.currentElement) return;
     e.preventDefault();
+
+    const node = dragState.currentElement;
 
     // Convert to SVG coordinates
     const svgPoint = svg.createSVGPoint();
@@ -1121,14 +1106,34 @@ function makeNodesDraggable(svg) {
       newY = Math.round(newY / dragState.gridSize) * dragState.gridSize;
     }
 
-    // Update transform
-    const transform = dragState.currentElement.getAttribute('transform') || '';
+    // === RESTRICT TO VIEWPORT BOUNDARIES ===
+    const nodeBBox = node.getBBox();
+    const nodeWidth = nodeBBox.width;
+    const nodeHeight = nodeBBox.height;
+    const padding = 20; // Keep some padding from edges
+
+    // Clamp position to viewport
+    newX = Math.max(vbX + padding, Math.min(newX, vbX + vbWidth - nodeWidth - padding));
+    newY = Math.max(vbY + padding, Math.min(newY, vbY + vbHeight - nodeHeight - padding));
+
+    // Calculate movement delta for edge updates
+    const oldTransform = node.getAttribute('transform') || '';
+    const oldMatch = oldTransform.match(/translate\(([^,]+),([^)]+)\)/);
+    const oldX = oldMatch ? parseFloat(oldMatch[1]) : 0;
+    const oldY = oldMatch ? parseFloat(oldMatch[2]) : 0;
+    const deltaX = newX - oldX;
+    const deltaY = newY - oldY;
+
+    // Update node transform
+    const transform = node.getAttribute('transform') || '';
     const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
     const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
-    dragState.currentElement.setAttribute('transform', newTransform);
+    node.setAttribute('transform', newTransform);
 
-    // Expand canvas if needed (with size limits)
-    expandCanvasIfNeeded(svg, dragState.currentElement);
+    // === UPDATE CONNECTED EDGES ===
+    if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
+      updateConnectedEdges(svg, node, deltaX, deltaY);
+    }
   };
 
   /**
@@ -1147,6 +1152,87 @@ function makeNodesDraggable(svg) {
       dragState.dragging = false;
     }
   };
+
+  /**
+   * Update edges connected to a node
+   * Moves edge endpoints that are attached to the moving node
+   */
+  function updateConnectedEdges(svg, node, deltaX, deltaY) {
+    // Get node's center position
+    const nodeBBox = node.getBBox();
+    const nodeTransform = node.getAttribute('transform') || '';
+    const nodeMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
+    if (!nodeMatch) return;
+
+    const nodeX = parseFloat(nodeMatch[1]);
+    const nodeY = parseFloat(nodeMatch[2]);
+    const nodeCenterX = nodeX + nodeBBox.x + nodeBBox.width / 2;
+    const nodeCenterY = nodeY + nodeBBox.y + nodeBBox.height / 2;
+
+    // Find all edges (paths) in the diagram
+    const edges = svg.querySelectorAll('path.flowchart-link, path[class*="edge"], path[marker-end], g.edgePath path');
+
+    const CONNECTION_DISTANCE = 100; // Distance to consider edge connected to node
+
+    edges.forEach(edge => {
+      const d = edge.getAttribute('d');
+      if (!d) return;
+
+      // Parse path to find start and end points
+      const coords = [...d.matchAll(/([-\d.]+)[,\s]+([-\d.]+)/g)];
+      if (coords.length < 2) return;
+
+      let modified = false;
+      let newPath = d;
+
+      // Check start point
+      const startX = parseFloat(coords[0][1]);
+      const startY = parseFloat(coords[0][2]);
+      const distToStart = Math.sqrt(
+        Math.pow(startX - (nodeCenterX - deltaX), 2) +
+        Math.pow(startY - (nodeCenterY - deltaY), 2)
+      );
+
+      if (distToStart < CONNECTION_DISTANCE) {
+        // Move start point
+        const newStartX = startX + deltaX;
+        const newStartY = startY + deltaY;
+        newPath = newPath.replace(
+          /M\s*[-\d.]+[,\s]+[-\d.]+/,
+          `M${newStartX},${newStartY}`
+        );
+        modified = true;
+      }
+
+      // Check end point
+      const lastCoord = coords[coords.length - 1];
+      const endX = parseFloat(lastCoord[1]);
+      const endY = parseFloat(lastCoord[2]);
+      const distToEnd = Math.sqrt(
+        Math.pow(endX - (nodeCenterX - deltaX), 2) +
+        Math.pow(endY - (nodeCenterY - deltaY), 2)
+      );
+
+      if (distToEnd < CONNECTION_DISTANCE) {
+        // Move end point
+        const newEndX = endX + deltaX;
+        const newEndY = endY + deltaY;
+        const lastCoordStr = `${lastCoord[1]},${lastCoord[2]}`;
+        const lastIndex = newPath.lastIndexOf(lastCoordStr);
+        if (lastIndex !== -1) {
+          newPath = newPath.substring(0, lastIndex) +
+                   `${newEndX},${newEndY}` +
+                   newPath.substring(lastIndex + lastCoordStr.length);
+          modified = true;
+        }
+      }
+
+      // Apply updated path
+      if (modified) {
+        edge.setAttribute('d', newPath);
+      }
+    });
+  }
 
   // Attach global handlers
   svg.addEventListener('mousemove', mouseMoveHandler);
