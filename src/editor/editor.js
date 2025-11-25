@@ -139,9 +139,6 @@ function setupEventListeners() {
   // Preview actions
   document.getElementById('dragModeBtn').addEventListener('click', toggleDragMode);
   document.getElementById('gridSnapBtn').addEventListener('click', toggleGridSnap);
-  document.getElementById('alignLeftBtn').addEventListener('click', () => alignNodes('left'));
-  document.getElementById('alignCenterBtn').addEventListener('click', () => alignNodes('center'));
-  document.getElementById('alignRightBtn').addEventListener('click', () => alignNodes('right'));
   document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
   document.getElementById('zoomInBtn').addEventListener('click', () => zoom(10));
   document.getElementById('zoomOutBtn').addEventListener('click', () => zoom(-10));
@@ -1159,6 +1156,7 @@ function makeNodesDraggable(svg) {
  * Reconnect edges to a node after it has been moved
  * This function finds all edges connected to the node and updates their
  * start/end points to match the node's new position
+ * Also updates edge labels to follow the path
  *
  * @param {SVGElement} svg - The SVG element containing the diagram
  * @param {SVGElement} node - The node that was moved
@@ -1175,23 +1173,44 @@ function reconnectNodeEdges(svg, node) {
     const nodeX = parseFloat(nodeTranslateMatch[1]);
     const nodeY = parseFloat(nodeTranslateMatch[2]);
 
-    // Calculate node center point for edge connections
+    // Calculate connection points for the node
     const nodeCenterX = nodeX + nodeBBox.x + nodeBBox.width / 2;
     const nodeCenterY = nodeY + nodeBBox.y + nodeBBox.height / 2;
+    const nodeTop = nodeY + nodeBBox.y;
+    const nodeBottom = nodeY + nodeBBox.y + nodeBBox.height;
+    const nodeLeft = nodeX + nodeBBox.x;
+    const nodeRight = nodeX + nodeBBox.x + nodeBBox.width;
 
-    // Find all edge paths in the diagram
-    const edges = svg.querySelectorAll('path.flowchart-link, path.edge-pattern, path[class*="edge"], path[marker-end], g.edgePath path, g.edge path');
+    // Find all edge-related elements
+    const edgePaths = svg.querySelectorAll(
+      'path.flowchart-link, ' +
+      'path.transition, ' +
+      'path[class*="edge"], ' +
+      'path[marker-end], ' +
+      'path[marker-start], ' +
+      'g.edgePath path, ' +
+      'g.edge path'
+    );
 
-    edges.forEach(pathElement => {
+    // Also find edge label groups
+    const edgeLabels = svg.querySelectorAll(
+      'g.edgeLabel, ' +
+      'g[class*="edgeLabel"], ' +
+      'text.edgeLabel'
+    );
+
+    // Process each edge path
+    edgePaths.forEach(pathElement => {
       const d = pathElement.getAttribute('d');
       if (!d) return;
 
-      // Parse the path to find start and end points
+      // Parse path commands
       const pathCommands = d.match(/[MLHVCSQTAZ][^MLHVCSQTAZ]*/gi);
-      if (!pathCommands || pathCommands.length < 2) return;
+      if (!pathCommands || pathCommands.length < 1) return;
 
       let newPath = d;
       let edgeModified = false;
+      const CONNECTION_RANGE = 250; // Increased range for better detection
 
       // Check and update start point (M command)
       const startMatch = pathCommands[0].match(/M\s*([-\d.]+)[,\s]+([-\d.]+)/i);
@@ -1199,52 +1218,95 @@ function reconnectNodeEdges(svg, node) {
         const startX = parseFloat(startMatch[1]);
         const startY = parseFloat(startMatch[2]);
 
-        // Check if start point is near the moved node's old or new position
         const distToNode = Math.sqrt(
           Math.pow(startX - nodeCenterX, 2) +
           Math.pow(startY - nodeCenterY, 2)
         );
 
-        // If within connection range (200px), reconnect to node center
-        if (distToNode < 200) {
-          newPath = newPath.replace(/M\s*[-\d.]+[,\s]+[-\d.]+/i, `M${nodeCenterX},${nodeCenterY}`);
+        if (distToNode < CONNECTION_RANGE) {
+          // Calculate best connection point based on direction
+          let connectX = nodeCenterX;
+          let connectY = nodeCenterY;
+
+          // Get second point to determine direction
+          if (pathCommands.length > 1) {
+            const secondMatch = pathCommands[1].match(/([-\d.]+)[,\s]+([-\d.]+)/);
+            if (secondMatch) {
+              const nextX = parseFloat(secondMatch[1]);
+              const nextY = parseFloat(secondMatch[2]);
+
+              // Connect to the side facing the next point
+              if (Math.abs(nextX - nodeCenterX) > Math.abs(nextY - nodeCenterY)) {
+                // Horizontal connection
+                connectX = nextX > nodeCenterX ? nodeRight : nodeLeft;
+                connectY = nodeCenterY;
+              } else {
+                // Vertical connection
+                connectX = nodeCenterX;
+                connectY = nextY > nodeCenterY ? nodeBottom : nodeTop;
+              }
+            }
+          }
+
+          newPath = newPath.replace(/M\s*[-\d.]+[,\s]+[-\d.]+/i, `M${connectX},${connectY}`);
           edgeModified = true;
         }
       }
 
-      // Check and update end point (last coordinate in path)
-      // Extract all coordinate pairs from the path
+      // Check and update end point (last coordinate)
       const coordMatches = [...d.matchAll(/([-\d.]+)[,\s]+([-\d.]+)/g)];
-      if (coordMatches.length > 0) {
+      if (coordMatches.length > 1) {
         const lastCoord = coordMatches[coordMatches.length - 1];
         const endX = parseFloat(lastCoord[1]);
         const endY = parseFloat(lastCoord[2]);
 
-        // Check if end point is near the moved node
         const distToNode = Math.sqrt(
           Math.pow(endX - nodeCenterX, 2) +
           Math.pow(endY - nodeCenterY, 2)
         );
 
-        // If within connection range, reconnect to node center
-        if (distToNode < 200) {
-          // Replace the last coordinate pair
+        if (distToNode < CONNECTION_RANGE) {
+          // Calculate best connection point based on direction
+          let connectX = nodeCenterX;
+          let connectY = nodeCenterY;
+
+          // Get second-to-last point to determine direction
+          if (coordMatches.length > 1) {
+            const prevCoord = coordMatches[coordMatches.length - 2];
+            const prevX = parseFloat(prevCoord[1]);
+            const prevY = parseFloat(prevCoord[2]);
+
+            // Connect to the side facing the previous point
+            if (Math.abs(prevX - nodeCenterX) > Math.abs(prevY - nodeCenterY)) {
+              // Horizontal connection
+              connectX = prevX > nodeCenterX ? nodeRight : nodeLeft;
+              connectY = nodeCenterY;
+            } else {
+              // Vertical connection
+              connectX = nodeCenterX;
+              connectY = prevY > nodeCenterY ? nodeBottom : nodeTop;
+            }
+          }
+
+          // Replace the last coordinate
           const lastCoordStr = `${lastCoord[1]},${lastCoord[2]}`;
           const lastIndex = newPath.lastIndexOf(lastCoordStr);
           if (lastIndex !== -1) {
             newPath = newPath.substring(0, lastIndex) +
-                     `${nodeCenterX},${nodeCenterY}` +
+                     `${connectX},${connectY}` +
                      newPath.substring(lastIndex + lastCoordStr.length);
             edgeModified = true;
           }
         }
       }
 
-      // Apply the updated path if it was modified
+      // Apply the updated path
       if (edgeModified) {
         pathElement.setAttribute('d', newPath);
       }
     });
+
+    console.log(`Reconnected ${edgePaths.length} edge paths`);
   } catch (error) {
     console.error('Error reconnecting node edges:', error);
   }
@@ -1393,91 +1455,6 @@ function toggleGridSnap() {
     btn.classList.remove('active');
     showNotification('Grid snap disabled', 'success');
   }
-}
-
-// Align nodes
-async function alignNodes(alignment) {
-  const svg = preview.querySelector('svg');
-  if (!svg) {
-    showNotification('No diagram to align', 'error');
-    return;
-  }
-
-  const nodes = svg.querySelectorAll('g[transform*="translate"]');
-  if (nodes.length === 0) {
-    showNotification('No nodes to align', 'error');
-    return;
-  }
-
-  // Get all node positions and bounding boxes
-  const nodeData = [];
-  nodes.forEach((node, index) => {
-    const transform = node.getAttribute('transform');
-    const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
-    if (translateMatch) {
-      const bbox = node.getBBox();
-      nodeData.push({
-        node,
-        index,
-        x: parseFloat(translateMatch[1]),
-        y: parseFloat(translateMatch[2]),
-        bbox
-      });
-    }
-  });
-
-  if (nodeData.length === 0) return;
-
-  // Calculate alignment position
-  let alignX, alignY;
-
-  switch (alignment) {
-    case 'left':
-      alignX = Math.min(...nodeData.map(d => d.x));
-      nodeData.forEach(data => {
-        const transform = data.node.getAttribute('transform') || '';
-        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
-        const newTransform = `translate(${alignX},${data.y}) ${otherTransforms}`.trim();
-        data.node.setAttribute('transform', newTransform);
-      });
-      break;
-
-    case 'center':
-      const minX = Math.min(...nodeData.map(d => d.x + d.bbox.x));
-      const maxX = Math.max(...nodeData.map(d => d.x + d.bbox.x + d.bbox.width));
-      const centerX = (minX + maxX) / 2;
-
-      nodeData.forEach(data => {
-        const nodeCenterX = data.x + data.bbox.x + data.bbox.width / 2;
-        const offsetX = centerX - nodeCenterX;
-        const newX = data.x + offsetX;
-
-        const transform = data.node.getAttribute('transform') || '';
-        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
-        const newTransform = `translate(${newX},${data.y}) ${otherTransforms}`.trim();
-        data.node.setAttribute('transform', newTransform);
-      });
-      break;
-
-    case 'right':
-      const maxRight = Math.max(...nodeData.map(d => d.x + d.bbox.x + d.bbox.width));
-      nodeData.forEach(data => {
-        const nodeRight = data.x + data.bbox.x + data.bbox.width;
-        const offsetX = maxRight - nodeRight;
-        const newX = data.x + offsetX;
-
-        const transform = data.node.getAttribute('transform') || '';
-        const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
-        const newTransform = `translate(${newX},${data.y}) ${otherTransforms}`.trim();
-        data.node.setAttribute('transform', newTransform);
-      });
-      break;
-  }
-
-  // Save layout after alignment
-  await saveLayout(svg, dragState.diagramHash);
-
-  showNotification(`Nodes aligned ${alignment}`, 'success');
 }
 
 // ==============================================
