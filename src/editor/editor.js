@@ -139,6 +139,7 @@ function setupEventListeners() {
   // Preview actions
   document.getElementById('dragModeBtn').addEventListener('click', toggleDragMode);
   document.getElementById('gridSnapBtn').addEventListener('click', toggleGridSnap);
+  document.getElementById('showDragAreaBtn').addEventListener('click', toggleDragAreaDisplay);
   document.getElementById('reconnectEdgesBtn').addEventListener('click', reconnectEdges);
   document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
   document.getElementById('zoomInBtn').addEventListener('click', () => zoom(10));
@@ -988,33 +989,58 @@ function toggleDragMode() {
 /**
  * Enable drag-and-drop for nodes only
  * Edges automatically follow connected nodes
- * Movement restricted to visible viewport
+ * Movement restricted to visible preview container area
  *
  * @param {SVGElement} svg - The SVG element containing the diagram
  */
 function makeNodesDraggable(svg) {
   if (!svg) return;
 
-  // === GET VIEWPORT BOUNDARIES ===
-  // Movement will be restricted to current viewBox
-  let viewBox = svg.getAttribute('viewBox');
-  let vbX = 0, vbY = 0, vbWidth = 800, vbHeight = 600;
+  // === GET DRAGGABLE AREA BOUNDARIES ===
+  // Use preview container size for larger draggable area
+  const previewContainer = document.querySelector('.preview-container');
+  const containerRect = previewContainer ? previewContainer.getBoundingClientRect() : null;
 
-  if (viewBox) {
-    const parts = viewBox.split(/[\s,]+/);
-    vbX = parseFloat(parts[0]) || 0;
-    vbY = parseFloat(parts[1]) || 0;
-    vbWidth = parseFloat(parts[2]) || 800;
-    vbHeight = parseFloat(parts[3]) || 600;
+  // Set draggable area to be much larger than initial viewBox
+  // This prevents nodes from being clipped when moving
+  let vbX = 0, vbY = 0;
+  let vbWidth = containerRect ? containerRect.width * 2 : 1600;  // 2x container width
+  let vbHeight = containerRect ? containerRect.height * 2 : 1200; // 2x container height
+
+  // Update SVG viewBox to accommodate larger area
+  svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbWidth} ${vbHeight}`);
+
+  console.log(`Draggable area: ${vbX}, ${vbY}, ${vbWidth}, ${vbHeight}`);
+
+  // === ADD SEMI-TRANSPARENT BACKGROUND TO SHOW DRAG AREA ===
+  // Create or update the drag area indicator
+  let dragAreaRect = svg.querySelector('#dragAreaIndicator');
+  if (!dragAreaRect) {
+    dragAreaRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    dragAreaRect.id = 'dragAreaIndicator';
+    dragAreaRect.setAttribute('x', vbX);
+    dragAreaRect.setAttribute('y', vbY);
+    dragAreaRect.setAttribute('width', vbWidth);
+    dragAreaRect.setAttribute('height', vbHeight);
+    dragAreaRect.setAttribute('fill', 'rgba(100, 150, 255, 0.1)'); // Light blue semi-transparent
+    dragAreaRect.setAttribute('stroke', 'rgba(100, 150, 255, 0.3)');
+    dragAreaRect.setAttribute('stroke-width', '2');
+    dragAreaRect.setAttribute('stroke-dasharray', '10,5');
+    dragAreaRect.setAttribute('pointer-events', 'none'); // Don't interfere with clicks
+    dragAreaRect.style.display = 'none'; // Hidden by default
+
+    // Insert as first child so it appears behind everything
+    svg.insertBefore(dragAreaRect, svg.firstChild);
   } else {
-    const currentWidth = parseFloat(svg.getAttribute('width') || svg.viewBox.baseVal.width || 800);
-    const currentHeight = parseFloat(svg.getAttribute('height') || svg.viewBox.baseVal.height || 600);
-    vbWidth = currentWidth;
-    vbHeight = currentHeight;
-    svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbWidth} ${vbHeight}`);
+    // Update existing rect
+    dragAreaRect.setAttribute('x', vbX);
+    dragAreaRect.setAttribute('y', vbY);
+    dragAreaRect.setAttribute('width', vbWidth);
+    dragAreaRect.setAttribute('height', vbHeight);
   }
 
-  console.log(`Viewport boundaries: ${vbX}, ${vbY}, ${vbWidth}, ${vbHeight}`);
+  // Store boundaries for use in drag handlers
+  svg._dragBoundaries = { vbX, vbY, vbWidth, vbHeight };
 
   // === SELECT ONLY NODES (NOT EDGES) ===
   // Only nodes are draggable - edges will follow automatically
@@ -1107,15 +1133,18 @@ function makeNodesDraggable(svg) {
       newY = Math.round(newY / dragState.gridSize) * dragState.gridSize;
     }
 
-    // === RESTRICT TO VIEWPORT BOUNDARIES ===
+    // === RESTRICT TO DRAGGABLE AREA BOUNDARIES ===
     const nodeBBox = node.getBBox();
     const nodeWidth = nodeBBox.width;
     const nodeHeight = nodeBBox.height;
     const padding = 20; // Keep some padding from edges
 
-    // Clamp position to viewport
-    newX = Math.max(vbX + padding, Math.min(newX, vbX + vbWidth - nodeWidth - padding));
-    newY = Math.max(vbY + padding, Math.min(newY, vbY + vbHeight - nodeHeight - padding));
+    // Get boundaries from SVG (set in makeNodesDraggable)
+    const boundaries = svg._dragBoundaries || { vbX: 0, vbY: 0, vbWidth: 1600, vbHeight: 1200 };
+
+    // Clamp position to draggable area
+    newX = Math.max(boundaries.vbX + padding, Math.min(newX, boundaries.vbX + boundaries.vbWidth - nodeWidth - padding));
+    newY = Math.max(boundaries.vbY + padding, Math.min(newY, boundaries.vbY + boundaries.vbHeight - nodeHeight - padding));
 
     // Update node transform (edges will be reconnected manually via button)
     const transform = node.getAttribute('transform') || '';
@@ -1302,6 +1331,36 @@ function toggleGridSnap() {
   } else {
     btn.classList.remove('active');
     showNotification('Grid snap disabled', 'success');
+  }
+}
+
+// Toggle drag area display
+function toggleDragAreaDisplay() {
+  const svg = preview.querySelector('svg');
+  if (!svg) {
+    showNotification('Please render a diagram first', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('showDragAreaBtn');
+  const dragAreaRect = svg.querySelector('#dragAreaIndicator');
+
+  if (!dragAreaRect) {
+    showNotification('Drag area not available. Enable drag mode first.', 'error');
+    return;
+  }
+
+  // Toggle visibility
+  const isVisible = dragAreaRect.style.display !== 'none';
+  dragAreaRect.style.display = isVisible ? 'none' : 'block';
+
+  // Update button state
+  if (isVisible) {
+    btn.classList.remove('active');
+    showNotification('Drag area hidden', 'success');
+  } else {
+    btn.classList.add('active');
+    showNotification('Drag area visible - shows the boundaries where you can move nodes', 'success', 4000);
   }
 }
 
