@@ -50,7 +50,8 @@ let dragState = {
   diagramHash: null,     // SHA-256 hash identifying the current diagram
   gridSnap: false,       // Whether grid snapping is enabled
   gridSize: 10,          // Grid size in pixels (default 10px)
-  selectedNodes: []      // Array of currently selected nodes (future feature)
+  selectedNodes: [],     // Array of currently selected nodes (future feature)
+  connectedEdges: []     // Edges connected to the current dragging node
 };
 
 // ==============================================
@@ -1078,6 +1079,10 @@ function makeNodesDraggable(svg) {
         y: point.y - currentY
       };
 
+      // Find and store edges connected to this node BEFORE dragging
+      dragState.connectedEdges = findConnectedEdges(svg, draggableElement);
+      console.log(`Found ${dragState.connectedEdges.length} edges connected to this node`);
+
       // Add dragging class
       draggableElement.classList.add('dragging');
     };
@@ -1130,8 +1135,11 @@ function makeNodesDraggable(svg) {
       dragState.currentNode.style.cursor = 'grab';
       dragState.currentNode.classList.remove('dragging');
 
-      // Reconnect edges to the moved node after drag completes
-      reconnectNodeEdges(svg, dragState.currentNode);
+      // Reconnect ONLY the edges that were originally connected to this node
+      reconnectNodeEdges(svg, dragState.currentNode, dragState.connectedEdges);
+
+      // Clear connected edges
+      dragState.connectedEdges = [];
 
       // Save layout after drag
       await saveLayout(svg, dragState.diagramHash);
@@ -1153,16 +1161,114 @@ function makeNodesDraggable(svg) {
 }
 
 /**
- * Reconnect edges to a node after it has been moved
- * This function finds all edges connected to the node and updates their
- * start/end points to match the node's new position
- * Also updates edge labels to follow the path
+ * Find all edges connected to a specific node
+ * Identifies edges by checking if their start or end points are near the node
+ *
+ * @param {SVGElement} svg - The SVG element containing the diagram
+ * @param {SVGElement} node - The node to find connected edges for
+ * @returns {Array} Array of connected edge path elements with connection info
+ */
+function findConnectedEdges(svg, node) {
+  try {
+    const connectedEdges = [];
+
+    // Get node's bounding box and position
+    const nodeBBox = node.getBBox();
+    const nodeTransform = node.getAttribute('transform') || '';
+    const nodeTranslateMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
+
+    if (!nodeTranslateMatch) return connectedEdges;
+
+    const nodeX = parseFloat(nodeTranslateMatch[1]);
+    const nodeY = parseFloat(nodeTranslateMatch[2]);
+
+    // Calculate node center
+    const nodeCenterX = nodeX + nodeBBox.x + nodeBBox.width / 2;
+    const nodeCenterY = nodeY + nodeBBox.y + nodeBBox.height / 2;
+
+    // Find all edge paths
+    const edgePaths = svg.querySelectorAll(
+      'path.flowchart-link, ' +
+      'path.transition, ' +
+      'path[class*="edge"], ' +
+      'path[marker-end], ' +
+      'path[marker-start], ' +
+      'g.edgePath path, ' +
+      'g.edge path'
+    );
+
+    const CONNECTION_RANGE = 250;
+
+    edgePaths.forEach(pathElement => {
+      const d = pathElement.getAttribute('d');
+      if (!d) return;
+
+      const pathCommands = d.match(/[MLHVCSQTAZ][^MLHVCSQTAZ]*/gi);
+      if (!pathCommands || pathCommands.length < 1) return;
+
+      let connectionInfo = {
+        pathElement: pathElement,
+        isStartConnected: false,
+        isEndConnected: false
+      };
+
+      // Check start point
+      const startMatch = pathCommands[0].match(/M\s*([-\d.]+)[,\s]+([-\d.]+)/i);
+      if (startMatch) {
+        const startX = parseFloat(startMatch[1]);
+        const startY = parseFloat(startMatch[2]);
+        const distToNode = Math.sqrt(
+          Math.pow(startX - nodeCenterX, 2) +
+          Math.pow(startY - nodeCenterY, 2)
+        );
+        if (distToNode < CONNECTION_RANGE) {
+          connectionInfo.isStartConnected = true;
+        }
+      }
+
+      // Check end point
+      const coordMatches = [...d.matchAll(/([-\d.]+)[,\s]+([-\d.]+)/g)];
+      if (coordMatches.length > 0) {
+        const lastCoord = coordMatches[coordMatches.length - 1];
+        const endX = parseFloat(lastCoord[1]);
+        const endY = parseFloat(lastCoord[2]);
+        const distToNode = Math.sqrt(
+          Math.pow(endX - nodeCenterX, 2) +
+          Math.pow(endY - nodeCenterY, 2)
+        );
+        if (distToNode < CONNECTION_RANGE) {
+          connectionInfo.isEndConnected = true;
+        }
+      }
+
+      // Add to connected edges if either start or end is connected
+      if (connectionInfo.isStartConnected || connectionInfo.isEndConnected) {
+        connectedEdges.push(connectionInfo);
+      }
+    });
+
+    return connectedEdges;
+  } catch (error) {
+    console.error('Error finding connected edges:', error);
+    return [];
+  }
+}
+
+/**
+ * Reconnect specific edges to a node after it has been moved
+ * Only reconnects the edges that were originally connected to this node
  *
  * @param {SVGElement} svg - The SVG element containing the diagram
  * @param {SVGElement} node - The node that was moved
+ * @param {Array} connectedEdges - Array of edge connection info from findConnectedEdges
  */
-function reconnectNodeEdges(svg, node) {
+function reconnectNodeEdges(svg, node, connectedEdges) {
   try {
+    if (!connectedEdges || connectedEdges.length === 0) {
+      console.log('No connected edges to reconnect');
+      return;
+    }
+
     // Get node's bounding box and position
     const nodeBBox = node.getBBox();
     const nodeTransform = node.getAttribute('transform') || '';
@@ -1181,26 +1287,9 @@ function reconnectNodeEdges(svg, node) {
     const nodeLeft = nodeX + nodeBBox.x;
     const nodeRight = nodeX + nodeBBox.x + nodeBBox.width;
 
-    // Find all edge-related elements
-    const edgePaths = svg.querySelectorAll(
-      'path.flowchart-link, ' +
-      'path.transition, ' +
-      'path[class*="edge"], ' +
-      'path[marker-end], ' +
-      'path[marker-start], ' +
-      'g.edgePath path, ' +
-      'g.edge path'
-    );
-
-    // Also find edge label groups
-    const edgeLabels = svg.querySelectorAll(
-      'g.edgeLabel, ' +
-      'g[class*="edgeLabel"], ' +
-      'text.edgeLabel'
-    );
-
-    // Process each edge path
-    edgePaths.forEach(pathElement => {
+    // Process each connected edge
+    connectedEdges.forEach(edgeInfo => {
+      const pathElement = edgeInfo.pathElement;
       const d = pathElement.getAttribute('d');
       if (!d) return;
 
@@ -1210,20 +1299,11 @@ function reconnectNodeEdges(svg, node) {
 
       let newPath = d;
       let edgeModified = false;
-      const CONNECTION_RANGE = 250; // Increased range for better detection
 
-      // Check and update start point (M command)
-      const startMatch = pathCommands[0].match(/M\s*([-\d.]+)[,\s]+([-\d.]+)/i);
-      if (startMatch) {
-        const startX = parseFloat(startMatch[1]);
-        const startY = parseFloat(startMatch[2]);
-
-        const distToNode = Math.sqrt(
-          Math.pow(startX - nodeCenterX, 2) +
-          Math.pow(startY - nodeCenterY, 2)
-        );
-
-        if (distToNode < CONNECTION_RANGE) {
+      // Only update start point if this edge was connected at the start
+      if (edgeInfo.isStartConnected) {
+        const startMatch = pathCommands[0].match(/M\s*([-\d.]+)[,\s]+([-\d.]+)/i);
+        if (startMatch) {
           // Calculate best connection point based on direction
           let connectX = nodeCenterX;
           let connectY = nodeCenterY;
@@ -1253,39 +1333,30 @@ function reconnectNodeEdges(svg, node) {
         }
       }
 
-      // Check and update end point (last coordinate)
-      const coordMatches = [...d.matchAll(/([-\d.]+)[,\s]+([-\d.]+)/g)];
-      if (coordMatches.length > 1) {
-        const lastCoord = coordMatches[coordMatches.length - 1];
-        const endX = parseFloat(lastCoord[1]);
-        const endY = parseFloat(lastCoord[2]);
+      // Only update end point if this edge was connected at the end
+      if (edgeInfo.isEndConnected) {
+        const coordMatches = [...d.matchAll(/([-\d.]+)[,\s]+([-\d.]+)/g)];
+        if (coordMatches.length > 1) {
+          const lastCoord = coordMatches[coordMatches.length - 1];
 
-        const distToNode = Math.sqrt(
-          Math.pow(endX - nodeCenterX, 2) +
-          Math.pow(endY - nodeCenterY, 2)
-        );
-
-        if (distToNode < CONNECTION_RANGE) {
           // Calculate best connection point based on direction
           let connectX = nodeCenterX;
           let connectY = nodeCenterY;
 
           // Get second-to-last point to determine direction
-          if (coordMatches.length > 1) {
-            const prevCoord = coordMatches[coordMatches.length - 2];
-            const prevX = parseFloat(prevCoord[1]);
-            const prevY = parseFloat(prevCoord[2]);
+          const prevCoord = coordMatches[coordMatches.length - 2];
+          const prevX = parseFloat(prevCoord[1]);
+          const prevY = parseFloat(prevCoord[2]);
 
-            // Connect to the side facing the previous point
-            if (Math.abs(prevX - nodeCenterX) > Math.abs(prevY - nodeCenterY)) {
-              // Horizontal connection
-              connectX = prevX > nodeCenterX ? nodeRight : nodeLeft;
-              connectY = nodeCenterY;
-            } else {
-              // Vertical connection
-              connectX = nodeCenterX;
-              connectY = prevY > nodeCenterY ? nodeBottom : nodeTop;
-            }
+          // Connect to the side facing the previous point
+          if (Math.abs(prevX - nodeCenterX) > Math.abs(prevY - nodeCenterY)) {
+            // Horizontal connection
+            connectX = prevX > nodeCenterX ? nodeRight : nodeLeft;
+            connectY = nodeCenterY;
+          } else {
+            // Vertical connection
+            connectX = nodeCenterX;
+            connectY = prevY > nodeCenterY ? nodeBottom : nodeTop;
           }
 
           // Replace the last coordinate
@@ -1306,7 +1377,7 @@ function reconnectNodeEdges(svg, node) {
       }
     });
 
-    console.log(`Reconnected ${edgePaths.length} edge paths`);
+    console.log(`Reconnected ${connectedEdges.length} edges (originally connected to this node)`);
   } catch (error) {
     console.error('Error reconnecting node edges:', error);
   }
@@ -1446,11 +1517,18 @@ async function resetLayout() {
 // Toggle grid snap
 function toggleGridSnap() {
   const btn = document.getElementById('gridSnapBtn');
+
+  // Check if drag mode is enabled
+  if (!dragState.enabled) {
+    showNotification('Please enable Drag Mode first', 'error');
+    return;
+  }
+
   dragState.gridSnap = !dragState.gridSnap;
 
   if (dragState.gridSnap) {
     btn.classList.add('active');
-    showNotification(`Grid snap enabled (${dragState.gridSize}px)`, 'success');
+    showNotification(`Grid snap enabled (${dragState.gridSize}px grid)`, 'success', 4000);
   } else {
     btn.classList.remove('active');
     showNotification('Grid snap disabled', 'success');
