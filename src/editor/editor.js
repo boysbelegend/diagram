@@ -139,6 +139,7 @@ function setupEventListeners() {
   // Preview actions
   document.getElementById('dragModeBtn').addEventListener('click', toggleDragMode);
   document.getElementById('gridSnapBtn').addEventListener('click', toggleGridSnap);
+  document.getElementById('reconnectEdgesBtn').addEventListener('click', reconnectEdges);
   document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
   document.getElementById('zoomInBtn').addEventListener('click', () => zoom(10));
   document.getElementById('zoomOutBtn').addEventListener('click', () => zoom(-10));
@@ -1116,24 +1117,11 @@ function makeNodesDraggable(svg) {
     newX = Math.max(vbX + padding, Math.min(newX, vbX + vbWidth - nodeWidth - padding));
     newY = Math.max(vbY + padding, Math.min(newY, vbY + vbHeight - nodeHeight - padding));
 
-    // Calculate movement delta for edge updates
-    const oldTransform = node.getAttribute('transform') || '';
-    const oldMatch = oldTransform.match(/translate\(([^,]+),([^)]+)\)/);
-    const oldX = oldMatch ? parseFloat(oldMatch[1]) : 0;
-    const oldY = oldMatch ? parseFloat(oldMatch[2]) : 0;
-    const deltaX = newX - oldX;
-    const deltaY = newY - oldY;
-
-    // Update node transform
+    // Update node transform (edges will be reconnected manually via button)
     const transform = node.getAttribute('transform') || '';
     const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
     const newTransform = `translate(${newX},${newY}) ${otherTransforms}`.trim();
     node.setAttribute('transform', newTransform);
-
-    // === UPDATE CONNECTED EDGES ===
-    if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
-      updateConnectedEdges(svg, node, deltaX, deltaY);
-    }
   };
 
   /**
@@ -1152,87 +1140,6 @@ function makeNodesDraggable(svg) {
       dragState.dragging = false;
     }
   };
-
-  /**
-   * Update edges connected to a node
-   * Moves edge endpoints that are attached to the moving node
-   */
-  function updateConnectedEdges(svg, node, deltaX, deltaY) {
-    // Get node's center position
-    const nodeBBox = node.getBBox();
-    const nodeTransform = node.getAttribute('transform') || '';
-    const nodeMatch = nodeTransform.match(/translate\(([^,]+),([^)]+)\)/);
-    if (!nodeMatch) return;
-
-    const nodeX = parseFloat(nodeMatch[1]);
-    const nodeY = parseFloat(nodeMatch[2]);
-    const nodeCenterX = nodeX + nodeBBox.x + nodeBBox.width / 2;
-    const nodeCenterY = nodeY + nodeBBox.y + nodeBBox.height / 2;
-
-    // Find all edges (paths) in the diagram
-    const edges = svg.querySelectorAll('path.flowchart-link, path[class*="edge"], path[marker-end], g.edgePath path');
-
-    const CONNECTION_DISTANCE = 100; // Distance to consider edge connected to node
-
-    edges.forEach(edge => {
-      const d = edge.getAttribute('d');
-      if (!d) return;
-
-      // Parse path to find start and end points
-      const coords = [...d.matchAll(/([-\d.]+)[,\s]+([-\d.]+)/g)];
-      if (coords.length < 2) return;
-
-      let modified = false;
-      let newPath = d;
-
-      // Check start point
-      const startX = parseFloat(coords[0][1]);
-      const startY = parseFloat(coords[0][2]);
-      const distToStart = Math.sqrt(
-        Math.pow(startX - (nodeCenterX - deltaX), 2) +
-        Math.pow(startY - (nodeCenterY - deltaY), 2)
-      );
-
-      if (distToStart < CONNECTION_DISTANCE) {
-        // Move start point
-        const newStartX = startX + deltaX;
-        const newStartY = startY + deltaY;
-        newPath = newPath.replace(
-          /M\s*[-\d.]+[,\s]+[-\d.]+/,
-          `M${newStartX},${newStartY}`
-        );
-        modified = true;
-      }
-
-      // Check end point
-      const lastCoord = coords[coords.length - 1];
-      const endX = parseFloat(lastCoord[1]);
-      const endY = parseFloat(lastCoord[2]);
-      const distToEnd = Math.sqrt(
-        Math.pow(endX - (nodeCenterX - deltaX), 2) +
-        Math.pow(endY - (nodeCenterY - deltaY), 2)
-      );
-
-      if (distToEnd < CONNECTION_DISTANCE) {
-        // Move end point
-        const newEndX = endX + deltaX;
-        const newEndY = endY + deltaY;
-        const lastCoordStr = `${lastCoord[1]},${lastCoord[2]}`;
-        const lastIndex = newPath.lastIndexOf(lastCoordStr);
-        if (lastIndex !== -1) {
-          newPath = newPath.substring(0, lastIndex) +
-                   `${newEndX},${newEndY}` +
-                   newPath.substring(lastIndex + lastCoordStr.length);
-          modified = true;
-        }
-      }
-
-      // Apply updated path
-      if (modified) {
-        edge.setAttribute('d', newPath);
-      }
-    });
-  }
 
   // Attach global handlers
   svg.addEventListener('mousemove', mouseMoveHandler);
@@ -1395,6 +1302,83 @@ function toggleGridSnap() {
   } else {
     btn.classList.remove('active');
     showNotification('Grid snap disabled', 'success');
+  }
+}
+
+// Reconnect edges after moving nodes
+async function reconnectEdges() {
+  try {
+    const svg = preview.querySelector('svg');
+    if (!svg) {
+      showNotification('No diagram to reconnect', 'error');
+      return;
+    }
+
+    // 1. Save current node positions
+    const nodePositions = [];
+    const nodes = svg.querySelectorAll('g.node, g.nodes > g, g[class*="node"]');
+
+    nodes.forEach(node => {
+      const transform = node.getAttribute('transform') || '';
+      const translateMatch = transform.match(/translate\(([^,]+),([^)]+)\)/);
+      if (translateMatch) {
+        // Get a unique identifier for this node
+        const id = node.id ||
+                   node.getAttribute('data-id') ||
+                   node.querySelector('[id]')?.id ||
+                   Array.from(nodes).indexOf(node).toString();
+
+        nodePositions.push({
+          id: id,
+          element: node,
+          x: parseFloat(translateMatch[1]),
+          y: parseFloat(translateMatch[2])
+        });
+      }
+    });
+
+    console.log(`Saved ${nodePositions.length} node positions`);
+
+    // 2. Re-render diagram with Mermaid (edges will be redrawn correctly)
+    status.textContent = 'Reconnecting edges...';
+    await updatePreview();
+
+    // 3. Restore node positions
+    const newSvg = preview.querySelector('svg');
+    if (newSvg) {
+      const newNodes = newSvg.querySelectorAll('g.node, g.nodes > g, g[class*="node"]');
+
+      newNodes.forEach((node, index) => {
+        // Try to match by ID or index
+        const nodeId = node.id ||
+                       node.getAttribute('data-id') ||
+                       node.querySelector('[id]')?.id ||
+                       index.toString();
+
+        const savedPosition = nodePositions.find(p => p.id === nodeId) || nodePositions[index];
+
+        if (savedPosition) {
+          const transform = node.getAttribute('transform') || '';
+          const otherTransforms = transform.replace(/translate\([^)]+\)/, '').trim();
+          const newTransform = `translate(${savedPosition.x},${savedPosition.y}) ${otherTransforms}`.trim();
+          node.setAttribute('transform', newTransform);
+        }
+      });
+
+      // Re-enable drag mode if it was active
+      if (dragState.enabled) {
+        makeNodesDraggable(newSvg);
+      }
+
+      console.log(`Restored ${nodePositions.length} node positions`);
+    }
+
+    showNotification('Edges reconnected!', 'success');
+    status.textContent = 'Ready';
+  } catch (error) {
+    console.error('Error reconnecting edges:', error);
+    showNotification('Failed to reconnect edges', 'error');
+    status.textContent = 'Error';
   }
 }
 
