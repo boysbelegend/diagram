@@ -1038,7 +1038,7 @@ function makeNodesDraggable(svg) {
     /**
      * Mouse Down - Start dragging
      */
-    element.addEventListener('mousedown', (e) => {
+    const mouseDownHandler = (e) => {
       if (!dragState.enabled) return;
       e.stopPropagation();
       e.preventDefault();
@@ -1051,6 +1051,7 @@ function makeNodesDraggable(svg) {
       // Set state
       dragState.dragging = true;
       dragState.currentElement = element;
+      dragState.currentNode = element;
       element.style.cursor = 'grabbing';
       element.classList.add('selected');
 
@@ -1078,7 +1079,10 @@ function makeNodesDraggable(svg) {
       }
 
       element.classList.add('dragging');
-    });
+    };
+
+    element.addEventListener('mousedown', mouseDownHandler);
+    element._mouseDownHandler = mouseDownHandler;
   });
 
   /**
